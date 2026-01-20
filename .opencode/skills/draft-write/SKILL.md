@@ -33,8 +33,9 @@ Do NOT use this skill for:
 
 Before drafting, the agent MUST verify:
 
-- There is an approved outline
-- The intended file path is confirmed
+- There is an approved outline in `content/outlines/<slug>.md`
+- The human has explicitly confirmed the outline is finalized (either original or after manual edits)
+- The intended draft file path is confirmed
 - Scope limits are explicit
 
 If any item is missing, STOP and ask.

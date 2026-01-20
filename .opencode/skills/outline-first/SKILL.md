@@ -63,13 +63,19 @@ Do not proceed until a choice is confirmed.
 
 ---
 
-### 3. Scope & Next Step Confirmation (Mandatory)
+### 3. Outline Creation & User Confirmation (Mandatory)
 
 After an outline is selected, the agent MUST:
 
-- Clarify scope limits (what the article will NOT cover)
-- Confirm the next task (typically draft writing)
-- Ask for approval before proceeding
+1. Create the outline file in `content/outlines/<slug>.md`
+2. Wait for the human to:
+   - Confirm the outline is ready, OR
+   - Manually edit/revise the outline
+3. Only after explicit user confirmation/approval, proceed to next step
+4. Clarify scope limits (what the article will NOT cover)
+5. Confirm the next task (typically draft writing)
+
+**CRITICAL**: The agent MUST NOT proceed to draft writing until the human explicitly confirms the outline is finalized (either original or after manual edits).
 
 ---
 

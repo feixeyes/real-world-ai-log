@@ -90,6 +90,10 @@ After an outline is confirmed, the agent MUST:
 2. Describe what each task will produce
 3. Ask for confirmation before executing tasks
 
+**CRITICAL TASK FLOW**:
+- Task 1 (Create outline file): Execute, then WAIT for user confirmation or manual edits
+- Task 2 (Create draft file): Execute ONLY AFTER user explicitly confirms the outline is finalized
+
 No task execution without approval.
 
 ---
