@@ -161,10 +161,22 @@ Multiple sources supported: text, images, files from conversation.
 
 ### Step 3: Generate Illustration Plan
 
+**Before creating the plan, record path information**:
+
+1. **Article absolute path**: [full path to article]
+2. **Article relative path from project root**: [e.g., content/drafts/article.md]
+3. **Illustration output directory**: illustrations/[topic-slug]/
+4. **Relative path from article to illustrations**: [calculated path, e.g., ../../illustrations/[topic-slug]/]
+
+This information will be used in Step 7 to ensure correct image paths.
+
 ```markdown
 # Illustration Plan
 
 **Article**: [article path]
+**Article location**: [relative path from project root]
+**Illustration directory**: illustrations/[topic-slug]/
+**Relative path for markdown**: [../../illustrations/[topic-slug]/ or correct path]
 **Style**: [selected style]
 **Illustration Count**: N images
 
@@ -269,25 +281,75 @@ Style notes: [specific style characteristics]
 
 ### Step 7: Update Article
 
-Insert generated images at corresponding positions:
+**CRITICAL: Calculate Correct Relative Path**
+
+Before inserting images, you MUST calculate the correct relative path:
+
+1. **Get absolute paths**:
+   - Article absolute path (e.g., `/project/content/drafts/article.md`)
+   - Illustration directory absolute path (e.g., `/project/illustrations/topic-slug/`)
+
+2. **Calculate relative path**:
+   - Count directory levels from article to project root
+   - Example: `content/drafts/article.md` → needs `../../` to reach root
+   - Then append illustration path: `../../illustrations/topic-slug/image.png`
+
+3. **Verify the path calculation**:
+   ```bash
+   # Get article directory
+   ARTICLE_DIR=$(dirname /path/to/article.md)
+
+   # Calculate relative path from article to illustration
+   # Use realpath or Python to calculate if needed
+   ```
+
+4. **Common patterns**:
+   - Article in `content/drafts/` → use `../../illustrations/`
+   - Article in `content/` → use `../illustrations/`
+   - Article in root → use `illustrations/`
+
+**Insert images with CORRECT relative path**:
 
 ```markdown
-![illustration description]([article-name]/illustrations/illustration-[slug].png)
+![illustration description](../../illustrations/topic-slug/illustration-[slug].png)
 ```
 
 **Insertion Rules**:
+- **CRITICAL**: Verify relative path is correct before inserting
 - Insert image after corresponding paragraph
 - Leave one blank line before and after image
 - Alt text uses concise description in article's language
+- After inserting ALL images, verify each path exists relative to article location
 
 ### Step 8: Output Summary
+
+**Final Verification**:
+
+Before completing, verify all image paths are correct:
+
+```bash
+# Verify each image path exists relative to article location
+cd $(dirname /path/to/article.md)
+ls ../../illustrations/topic-slug/illustration-1.png
+ls ../../illustrations/topic-slug/illustration-2.png
+# ... verify all paths
+```
+
+If any path verification fails, recalculate and fix the paths in the article.
+
+**Output Summary**:
 
 ```
 Article Illustration Complete!
 
 Article: [article path]
+Article location: [relative from project root]
+Illustration directory: illustrations/[topic-slug]/
+Relative path used: ../../illustrations/[topic-slug]/
 Style: [style name]
 Generated: X/N images successful
+
+✅ Image paths verified: All paths exist and are accessible from article location
 
 Illustration Positions:
 - illustration-xxx.png → After section "Section Name"
