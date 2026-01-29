@@ -33,9 +33,9 @@ Do NOT use this skill for:
 
 Before drafting, the agent MUST verify:
 
-- There is an approved outline in `content/outlines/<slug>.md`
+- There is an approved outline in `content/outlines/<english-slug>.md`
 - The human has explicitly confirmed the outline is finalized (either original or after manual edits)
-- The intended draft file path is confirmed
+- The intended draft file path is confirmed (must use English filename following `NAMING_CONVENTIONS.md`)
 - Scope limits are explicit
 
 If any item is missing, STOP and ask.
@@ -46,16 +46,25 @@ If any item is missing, STOP and ask.
 
 The agent MUST:
 
-1. Create a draft in `content/drafts/<slug>.md`
-2. Follow the outline section order
-3. Use short to medium paragraphs
-4. Mark any uncertain details with `TODO:` notes
+1. **Confirm English filename** if not already confirmed:
+   - Use the same filename as the outline (matching `<english-slug>`)
+   - Format: `content/drafts/<english-slug>.md`
+   - Follow `NAMING_CONVENTIONS.md` rules
+
+2. Create a draft in `content/drafts/<english-slug>.md`
+
+3. Follow the outline section order
+
+4. Use short to medium paragraphs
+
+5. Mark any uncertain details with `TODO:` notes
 
 The agent MUST NOT:
 
 - Invent experiences or results
 - Add new sections not in the outline without approval
 - Use authoritative or conclusive tone
+- Use Chinese characters in the filename
 
 ---
 
@@ -83,6 +92,8 @@ After drafting, the agent MUST:
 - ❌ Do not draft without outline approval
 - ❌ Do not overwrite existing drafts without permission
 - ❌ Do not auto-publish or move to `published/`
+- ❌ Do not create files with Chinese characters in filenames
+- ❌ Do not create files without following `NAMING_CONVENTIONS.md`
 
 ---
 

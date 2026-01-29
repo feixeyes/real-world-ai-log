@@ -50,12 +50,14 @@ Before proposing any outline or text, the agent MUST:
 
 1. Read `README.md`
 2. Read `AGENTS.md`
-3. Scan the latest 2–3 files in `content/published/`
-4. Identify:
+3. Read `NAMING_CONVENTIONS.md`
+4. Scan the latest 2–3 files in `content/published/`
+5. Identify:
 
    * Target audience (explicit or assumed)
    * Relevant column/series (if any)
    * Tone constraints and boundaries
+   * File naming requirements (all English, lowercase, hyphen-separated)
 
 The agent must summarize its understanding in 5–7 bullet points.
 
@@ -83,15 +85,36 @@ The agent MUST:
 
 After an outline is confirmed, the agent MUST:
 
-1. Break the work into small tasks, typically:
+1. **Propose English filenames** following `NAMING_CONVENTIONS.md`:
 
-   * Create outline file → `content/outlines/<slug>.md`
-   * Create draft file → `content/drafts/<slug>.md`
-2. Describe what each task will produce
-3. Ask for confirmation before executing tasks
+   * All filenames MUST use English (no Chinese characters)
+   * Use lowercase letters with hyphens to separate words
+   * Keep filenames concise but meaningful (3-6 words recommended)
+   * Format: `content/outlines/<english-slug>.md` and `content/drafts/<english-slug>.md`
+
+2. Break the work into small tasks, typically:
+
+   * Create outline file → `content/outlines/<english-slug>.md`
+   * Create draft file → `content/drafts/<english-slug>.md`
+
+3. **Explain the filename logic**:
+
+   * Show the proposed English filename
+   * Explain how it maps to the Chinese article title
+   * Example format:
+     ```
+     基于文章标题「<中文标题>」，我建议使用以下文件名：
+     - Outline: content/outlines/<english-slug>.md
+     - Draft: content/drafts/<english-slug>.md
+
+     文件命名逻辑：<解释为什么选择这个英文名称>
+     ```
+
+4. Describe what each task will produce
+5. **Ask for confirmation of both the task plan AND filenames** before executing tasks
 
 **CRITICAL TASK FLOW**:
-- Task 1 (Create outline file): Execute, then WAIT for user confirmation or manual edits
+- Task 1 (Create outline file): Execute with confirmed English filename, then WAIT for user confirmation or manual edits
 - Task 2 (Create draft file): Execute ONLY AFTER user explicitly confirms the outline is finalized
 
 No task execution without approval.
@@ -146,6 +169,8 @@ The agent MUST follow these constraints:
 * ❌ Do not publish or move files to `published/`
 * ❌ Do not invent facts or experiences
 * ❌ Do not overwrite existing files without permission
+* ❌ Do not create files with Chinese characters in filenames
+* ❌ Do not create files without proposing and confirming English filenames first
 
 If uncertain, STOP and ask.
 

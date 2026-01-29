@@ -36,11 +36,13 @@ Before proposing outlines, the agent MUST:
 
 1. Read `README.md`
 2. Read `AGENTS.md`
-3. Scan the latest 2–3 files in `content/published/` (if any)
-4. Identify:
+3. Read `NAMING_CONVENTIONS.md`
+4. Scan the latest 2–3 files in `content/published/` (if any)
+5. Identify:
    - Target audience
    - Related column/series (if any)
    - Tone constraints and boundaries
+   - File naming requirements (all English, lowercase, hyphen-separated)
 
 Summarize understanding in **5–7 bullet points**.
 
@@ -67,13 +69,26 @@ Do not proceed until a choice is confirmed.
 
 After an outline is selected, the agent MUST:
 
-1. Create the outline file in `content/outlines/<slug>.md`
-2. Wait for the human to:
+1. **Propose an English filename** following `NAMING_CONVENTIONS.md`:
+   - Extract core keywords from the article topic
+   - Translate to English if necessary
+   - Use lowercase with hyphens
+   - Explain the filename logic
+   - Format: `content/outlines/<english-slug>.md`
+
+2. **Wait for filename confirmation** before creating the file
+
+3. Create the outline file in `content/outlines/<english-slug>.md`
+
+4. Wait for the human to:
    - Confirm the outline is ready, OR
    - Manually edit/revise the outline
-3. Only after explicit user confirmation/approval, proceed to next step
-4. Clarify scope limits (what the article will NOT cover)
-5. Confirm the next task (typically draft writing)
+
+5. Only after explicit user confirmation/approval, proceed to next step
+
+6. Clarify scope limits (what the article will NOT cover)
+
+7. Confirm the next task (typically draft writing)
 
 **CRITICAL**: The agent MUST NOT proceed to draft writing until the human explicitly confirms the outline is finalized (either original or after manual edits).
 
@@ -94,6 +109,8 @@ After an outline is selected, the agent MUST:
 - ❌ Do not draft without an approved outline
 - ❌ Do not invent facts or experiences
 - ❌ Do not skip confirmation steps
+- ❌ Do not create files with Chinese characters in filenames
+- ❌ Do not create files without proposing and confirming English filenames first
 
 ---
 

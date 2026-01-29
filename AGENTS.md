@@ -36,11 +36,17 @@ Agents are collaborators, not autonomous authors.
    - Do not invent new folders casually
    - Reuse existing templates and conventions
 
-4. **No authoritative tone**
+4. **Follow file naming conventions**
+   - All filenames MUST use English (see `NAMING_CONVENTIONS.md`)
+   - Use lowercase letters with hyphens to separate words
+   - Never use Chinese characters in filenames
+   - Propose and confirm filenames before creating files
+
+5. **No authoritative tone**
    - This project does NOT present the author as an expert
    - Writing must stay practical, reflective, and honest
 
-5. **Assume the human is the final decision-maker**
+6. **Assume the human is the final decision-maker**
    - Plans require confirmation
    - Execution without confirmation is not allowed
 
@@ -68,6 +74,7 @@ Agents should follow this default sequence unless instructed otherwise:
 
 ### 1. Context Intake
 - Read `README.md`
+- Read `NAMING_CONVENTIONS.md`
 - Read latest 2–3 files in `content/published/`
 - Identify target column/series if specified
 
@@ -79,9 +86,11 @@ Agents should follow this default sequence unless instructed otherwise:
 - WAIT for confirmation
 
 ### 3. Execution Phase
+- Propose English filenames following `NAMING_CONVENTIONS.md`
+- Wait for filename confirmation
 - Break work into small tasks:
-  - Outline file → `content/outlines/`
-  - Draft file → `content/drafts/`
+  - Outline file → `content/outlines/<english-slug>.md`
+  - Draft file → `content/drafts/<english-slug>.md`
 - After each task:
   - Summarize what was done
   - Ask whether to continue

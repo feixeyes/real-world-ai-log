@@ -91,6 +91,9 @@ templates/
 
 All outputs are versioned. Nothing is ephemeral.
 
+**文件命名规范**: 所有生成的文件名必须使用英文，详见 [`NAMING_CONVENTIONS.md`](./NAMING_CONVENTIONS.md)。
+**File naming**: All generated filenames MUST use English. See [`NAMING_CONVENTIONS.md`](./NAMING_CONVENTIONS.md).
+
 ---
 
 ## 写作流程（简化版）｜Writing Workflow
