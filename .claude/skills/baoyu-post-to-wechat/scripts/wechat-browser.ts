@@ -628,7 +628,7 @@ export async function postToWeChat(options: WeChatBrowserOptions): Promise<void>
         expression: `document.querySelector('#js_submit')?.click()`,
       }, { sessionId });
       await sleep(3000);
-      console.log('[wechat-browser] Draft saved!');
+      console.log('[wechat-browser] Draft saved! Closing browser...');
     } else {
       console.log('[wechat-browser] Article composed (preview mode). Add --submit to save as draft.');
     }
@@ -636,7 +636,12 @@ export async function postToWeChat(options: WeChatBrowserOptions): Promise<void>
     if (cdp) {
       cdp.close();
     }
-    console.log('[wechat-browser] Done. Browser window left open.');
+    if (submit && chrome && !chrome.killed) {
+      chrome.kill();
+      console.log('[wechat-browser] Browser closed.');
+    } else if (!submit) {
+      console.log('[wechat-browser] Done. Browser window left open for preview.');
+    }
   }
 }
 
