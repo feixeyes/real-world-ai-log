@@ -366,9 +366,13 @@ export async function postArticle(options: ArticleOptions): Promise<void> {
       await sleep(5000);
     }
 
-    console.log('[wechat] Done. Browser window left open.');
+    console.log('[wechat] Draft saved. Closing browser...');
   } finally {
     cdp.close();
+    if (chrome && !chrome.killed) {
+      chrome.kill();
+      console.log('[wechat] Browser closed.');
+    }
   }
 }
 
