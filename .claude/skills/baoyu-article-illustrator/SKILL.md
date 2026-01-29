@@ -153,9 +153,11 @@ Multiple sources supported: text, images, files from conversation.
 - Scenarios needing imagination guidance
 
 **Illustration Count**:
-- Consider at least 1 image per major section
+- **Normal articles (< 3000 words)**: Generate 3 illustrations
+- **Long articles (3000-5000 words)**: Generate 4 illustrations
+- **Very long articles (> 5000 words)**: Generate 5 illustrations
 - Prioritize core arguments and abstract concepts
-- **Principle: More is better than fewer**
+- **Principle: Quality over quantity - avoid over-illustrating**
 
 ### Step 3: Generate Illustration Plan
 
