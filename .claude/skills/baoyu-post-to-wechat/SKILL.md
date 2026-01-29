@@ -66,6 +66,14 @@ npx -y bun ${SKILL_DIR}/scripts/wechat-article.ts --markdown article.md --theme 
 | Auto title compression | ✓ (to 20 chars) | ✗ |
 | Content compression | ✓ (to 1000 chars) | ✗ |
 | Themes | ✗ | ✓ (default, grace, simple) |
+| Auto close browser | ✓ (with --submit) | ✓ (always) |
+
+## Behavior
+
+- **Article posting**: Automatically saves as draft and closes browser after completion
+- **Image-text posting**:
+  - With `--submit`: Saves as draft and closes browser
+  - Without `--submit`: Leaves browser open for preview
 
 ## Troubleshooting
 
