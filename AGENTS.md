@@ -68,6 +68,13 @@ Agents must understand this structure before acting.
 
 ---
 
+## Local Skills
+
+- Project-specific skills live in `.claude/skills/`; load a skill only when the task needs it and follow its `SKILL.md`.
+- Common options: `baoyu-cover-image`, `baoyu-danger-gemini-web`, `baoyu-post-to-wechat`, `draft-write`, `outline-first`, `polish-style`, `publish-pac`, `research-topic`, `write-article`.
+
+---
+
 ## Standard Article Workflow
 
 Agents should follow this default sequence unless instructed otherwise:
