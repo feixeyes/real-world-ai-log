@@ -47,8 +47,10 @@ Agents are collaborators, not autonomous authors.
    - Writing must stay practical, reflective, and honest
 
 6. **Assume the human is the final decision-maker**
-   - Plans require confirmation
-   - Execution without confirmation is not allowed
+   - Outline direction / topic choice requires confirmation (always).
+   - For other low-stakes questions (filenames, minor wording, number of images, etc.):
+     - Ask once.
+     - If there is no reply within **10 minutes**, proceed with a sensible default and clearly log what was assumed.
 
 ---
 
