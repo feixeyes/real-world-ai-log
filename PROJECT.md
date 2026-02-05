@@ -76,6 +76,9 @@ Daily minimum bar:
 - Pick 2–3 ideas and turn them into outlines.
 - Publish at least 1 post, then add a small post-mortem in `data/` (what worked / what didn’t / what to systematize).
 
+### TODOs (workflow hygiene)
+- Cover image filenames: avoid generic `cover.png`; rename to meaningful names (include article slug and/or timestamp) before uploading to WeChat 素材库, to make later search/management easier.
+
 ## 7) Risks & constraints
 ### Naming convention drift
 - `NAMING_CONVENTIONS.md` requires English-only filenames.
