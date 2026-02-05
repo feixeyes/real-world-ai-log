@@ -51,6 +51,7 @@ node scripts/wechat-draft-with-images.mjs \
   --md content/drafts/<article>.md \
   --cookie /path/to/wechat-cookies.txt \
   --out .tmp/wechat-draft \
+  --cover cover.png --cover-index 0 \
   --illus1 illus-1-loop.png --illus1-index 0 \
   --illus2 illus-2-memory.png --illus2-index 1
 ```

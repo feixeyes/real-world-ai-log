@@ -215,21 +215,57 @@ async function confirmImagePick(page, outDir, tag) {
   await screenshot(page, outDir, `dlg-after-${tag}.png`);
 }
 
-async function setCoverFromMaterial(page, outDir) {
-  // Best-effort: locate cover area button.
-  const coverButtons = [
-    /选择封面/, /封面/, /更换封面/, /设置封面/
-  ];
-  for (const re of coverButtons) {
+async function clickFirstVisibleButtonByText(page, regexes) {
+  for (const re of regexes) {
     const btn = page.getByRole('button', { name: re });
-    if (await btn.count()) {
-      await btn.first().click();
-      await page.waitForTimeout(1500);
-      await screenshot(page, outDir, 'cover-dialog.png');
+    const n = await btn.count();
+    for (let i = 0; i < n; i++) {
+      const el = btn.nth(i);
+      const box = await el.boundingBox().catch(() => null);
+      if (!box || box.width < 5 || box.height < 5) continue;
+      await el.click();
       return true;
     }
   }
   return false;
+}
+
+async function setCoverFromMaterial(page, outDir, coverFilename, coverIndex = 0) {
+  // Best-effort: open cover dialog
+  const opened = await clickFirstVisibleButtonByText(page, [
+    /选择封面/, /设置封面/, /更换封面/, /^封面$/
+  ]);
+  if (!opened) {
+    await screenshot(page, outDir, 'cover-open-missing.png');
+    return { ok: false, reason: 'cover button not found' };
+  }
+  await page.waitForTimeout(2000);
+  await screenshot(page, outDir, 'cover-01-opened.png');
+
+  // Try enter material-library picker
+  // Some UIs show tabs/buttons like: 从素材库选择 / 素材库 / 图片库
+  const entered = await clickFirstVisibleButtonByText(page, [
+    /从素材库选择/, /素材库选择/, /素材库/, /图片库/
+  ]);
+  if (entered) {
+    await page.waitForTimeout(1500);
+    await screenshot(page, outDir, 'cover-02-enter-material.png');
+  }
+
+  // Now we are (hopefully) in an image picker dialog; reuse selection logic.
+  try {
+    await selectImageByFilename(page, coverFilename, outDir, 'cover', coverIndex);
+  } catch (e) {
+    await screenshot(page, outDir, 'cover-03-select-failed.png');
+    return { ok: false, reason: `select cover failed: ${e?.message || e}` };
+  }
+
+  // Some cover flows need an extra confirmation/next step.
+  await clickFirstVisibleButtonByText(page, [/下一步/, /确定/, /确认/, /完成/, /使用该封面/]).catch(() => undefined);
+  await page.waitForTimeout(2000);
+  await screenshot(page, outDir, 'cover-04-after.png');
+
+  return { ok: true };
 }
 
 function parseArgs(argv) {
@@ -243,6 +279,8 @@ function parseArgs(argv) {
     illus2: 'illus-2-memory.png',
     // Fallback selection by index under "最近使用" when filename is not visible.
     // 0 = first tile, 1 = second tile...
+    cover: 'cover.png',
+    coverIndex: 0,
     illus1Index: 0,
     illus2Index: 1,
   };
@@ -252,6 +290,8 @@ function parseArgs(argv) {
     if (a === '--md' && argv[i + 1]) args.markdownPath = argv[++i];
     else if (a === '--cookie' && argv[i + 1]) args.cookieFile = argv[++i];
     else if (a === '--out' && argv[i + 1]) args.outDir = argv[++i];
+    else if (a === '--cover' && argv[i + 1]) args.cover = argv[++i];
+    else if (a === '--cover-index' && argv[i + 1]) args.coverIndex = Number(argv[++i]);
     else if (a === '--illus1' && argv[i + 1]) args.illus1 = argv[++i];
     else if (a === '--illus2' && argv[i + 1]) args.illus2 = argv[++i];
     else if (a === '--illus1-index' && argv[i + 1]) args.illus1Index = Number(argv[++i]);
@@ -271,6 +311,7 @@ Usage (legacy positional):
 
 Usage (flags):
   node scripts/wechat-draft-with-images.mjs --md content/drafts/xxx.md --cookie /path/cookies.txt --out .tmp/wechat-draft \
+    --cover cover.png --cover-index 0 \
     --illus1 illus-1-loop.png --illus2 illus-2-memory.png \
     --illus1-index 0 --illus2-index 1
 
@@ -349,6 +390,9 @@ Notes:
   await page.waitForTimeout(1500);
   await screenshot(page, outDir, '03-filled-text.png');
 
+  // Set cover (best-effort)
+  const coverResult = await setCoverFromMaterial(page, outDir, args.cover, args.coverIndex);
+
   // Insert illustration 1 after section about loop
   await placeCursorAfterText(page, '闭环流程');
   await page.keyboard.press('Enter');
@@ -382,7 +426,7 @@ Notes:
   await page.waitForTimeout(3000);
   await screenshot(page, outDir, '06-draft-list.png');
 
-  console.log(JSON.stringify({ outDir, token, editUrl, title, titleFilled, saved }, null, 2));
+  console.log(JSON.stringify({ outDir, token, editUrl, title, titleFilled, coverResult, saved }, null, 2));
 
   await browser.close();
 }
