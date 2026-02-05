@@ -83,17 +83,25 @@ async function placeCursorAfterText(page, needle) {
       }
       return null;
     }
-    const editor = document.querySelector('[contenteditable="true"]');
+
+    // Prefer the main article body editor
+    const editor = document.querySelector('.ProseMirror[contenteditable="true"]')
+      || document.querySelector('[contenteditable="true"]');
     if (!editor) return false;
+
     const tn = findTextNode(editor);
     if (!tn) return false;
+
     const idx = tn.nodeValue.indexOf(needle) + needle.length;
     const range = document.createRange();
     range.setStart(tn, idx);
     range.collapse(true);
+
     const sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
+
+    // @ts-ignore
     editor.focus();
     return true;
   }, needle);
