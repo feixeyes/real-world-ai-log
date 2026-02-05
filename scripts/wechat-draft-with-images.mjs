@@ -380,7 +380,7 @@ Notes:
       el.dispatchEvent(new Event('change', { bubbles: true }));
       // try focus related editable area
       const label = document.querySelector('label[for="title"]');
-      if (label) (label as HTMLElement).click?.();
+      if (label && typeof label.click === 'function') label.click();
       return true;
     }, title.slice(0, 64));
     if (ok) titleFilled = true;
