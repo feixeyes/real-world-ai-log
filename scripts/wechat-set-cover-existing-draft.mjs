@@ -217,61 +217,47 @@ async function openDraftByKeyword(page, token, keyword, outDir, perPage, maxPage
     const listUrl = `https://mp.weixin.qq.com/cgi-bin/appmsg?begin=${begin}&count=${perPage}&type=77&action=list_card&lang=zh_CN&token=${token}`;
     await page.goto(listUrl, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(3000);
+
+    // Use the search box (top-right: 输入标题/关键词) to filter; reduces DOM ambiguity.
+    const search = page.locator('input[placeholder*="标题"][placeholder*="关键词"], input[placeholder*="标题"], input[placeholder*="关键词"]').first();
+    if (await search.count()) {
+      await search.click().catch(() => undefined);
+      await search.fill(keyword).catch(() => undefined);
+      await page.keyboard.press('Enter').catch(() => undefined);
+      await page.waitForTimeout(2500);
+    }
+
     await screenshot(page, outDir, `drafts-${String(p).padStart(2, '0')}.png`);
 
-    // In the draft list, open the editor via the card's action buttons (trash/edit/publish).
-    // These buttons often only appear on hover.
-    const card = page.locator('div, li, section, article').filter({ hasText: keyword }).first();
-    if (await card.count()) {
-      await card.hover().catch(() => undefined);
-      await page.waitForTimeout(800);
-
-      // First try: an explicit "编辑" label.
-      const explicitEdit = card.getByRole('button', { name: /编辑|修改/ });
-      if (await explicitEdit.count()) {
-        await explicitEdit.first().click();
-        try {
-          await page.waitForURL(/appmsg.*edit/i, { timeout: 10000 });
-        } catch {}
-        await page.waitForTimeout(1500);
-        await screenshot(page, outDir, 'draft-opened.png');
-        if (/appmsg.*edit/i.test(page.url())) {
-          return { ok: true, pageIndex: p, url: page.url(), method: 'explicit-edit-button' };
-        }
+    // In list view, click the matching title to open editor; if that fails, try the 操作 column edit button.
+    const title = page.getByText(keyword, { exact: false }).first();
+    if (await title.count()) {
+      await title.first().click().catch(() => undefined);
+      try {
+        await page.waitForURL(/appmsg.*edit/i, { timeout: 12000 });
+      } catch {}
+      await page.waitForTimeout(1500);
+      await screenshot(page, outDir, 'draft-opened.png');
+      if (/appmsg.*edit/i.test(page.url())) {
+        return { ok: true, pageIndex: p, url: page.url(), method: 'click-title' };
       }
 
-      // Heuristic: click the edit icon button inside this card.
-      // In the UI we saw, there are 3 icon buttons at top-right (trash / edit / publish), and edit is the middle one.
-      const iconButtons = card.getByRole('button');
-      const bn = await iconButtons.count();
-      if (bn >= 2) {
-        await iconButtons.nth(1).click().catch(() => undefined);
-        try {
-          await page.waitForURL(/appmsg.*edit/i, { timeout: 10000 });
-        } catch {}
-        await page.waitForTimeout(1500);
-        await screenshot(page, outDir, 'draft-opened.png');
-        if (/appmsg.*edit/i.test(page.url())) {
-          return { ok: true, pageIndex: p, url: page.url(), method: 'card-button-nth1' };
-        }
-      }
-
-      // Last resort: click the pencil icon by coordinates inside the hovered card.
-      const box = await card.boundingBox().catch(() => null);
-      if (box) {
-        const y = box.y + 28;
-        const candidates = [box.x + box.width - 110, box.x + box.width - 80, box.x + box.width - 50];
-        for (const x of candidates) {
-          await page.mouse.click(x, y).catch(() => undefined);
+      // 操作 column (usually right side) may have an edit icon/button
+      const row = page.locator('tr, li, div').filter({ hasText: keyword }).first();
+      if (await row.count()) {
+        await row.hover().catch(() => undefined);
+        await page.waitForTimeout(500);
+        const editBtn = row.getByRole('button', { name: /编辑|修改/ });
+        if (await editBtn.count()) {
+          await editBtn.first().click().catch(() => undefined);
           try {
-            await page.waitForURL(/appmsg.*edit/i, { timeout: 8000 });
-            break;
+            await page.waitForURL(/appmsg.*edit/i, { timeout: 12000 });
           } catch {}
-        }
-        await page.waitForTimeout(1200);
-        await screenshot(page, outDir, 'draft-opened.png');
-        if (/appmsg.*edit/i.test(page.url())) {
-          return { ok: true, pageIndex: p, url: page.url(), method: 'coord-click' };
+          await page.waitForTimeout(1500);
+          await screenshot(page, outDir, 'draft-opened.png');
+          if (/appmsg.*edit/i.test(page.url())) {
+            return { ok: true, pageIndex: p, url: page.url(), method: 'row-edit-button' };
+          }
         }
       }
     }
