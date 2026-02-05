@@ -253,14 +253,20 @@ async function setCoverFromMaterial(page, outDir, coverFilename, coverIndex = 0)
     }
   }
 
-  // Try C: click left-side cover thumbnail/card
+  // Try C: click left-side cover thumbnail/card (often needs clicking the gray cover area, not the label)
   if (!opened) {
-    const leftCard = page.locator('aside, .left, .appmsg_left, body').getByText('标题', { exact: true }).first();
-    if (await leftCard.count()) {
-      try {
-        await leftCard.click({ timeout: 3000 });
-        opened = true;
-      } catch {}
+    const titleLabel = page.getByText('标题', { exact: true }).first();
+    if (await titleLabel.count()) {
+      const box = await titleLabel.boundingBox().catch(() => null);
+      if (box) {
+        // Click above the "标题" label (inside the cover thumbnail area)
+        const x = box.x + box.width / 2;
+        const y = Math.max(5, box.y - 120);
+        try {
+          await page.mouse.click(x, y);
+          opened = true;
+        } catch {}
+      }
     }
   }
 
@@ -271,6 +277,15 @@ async function setCoverFromMaterial(page, outDir, coverFilename, coverIndex = 0)
 
   await page.waitForTimeout(2000);
   await screenshot(page, outDir, 'cover-01-opened.png');
+
+  // Ensure we are really in a cover selector / picker context.
+  // Wait briefly for known picker texts; if not present, we likely didn't open the cover UI.
+  const pickerHint = page.getByText(/从素材库选择|素材库|图片库|选择图片|确定|完成/, { exact: false }).first();
+  try {
+    await pickerHint.waitFor({ state: 'visible', timeout: 8000 });
+  } catch {
+    await screenshot(page, outDir, 'cover-open-not-confirmed.png');
+  }
 
   // Try enter material-library picker
   await clickFirstVisibleButtonByText(page, [
