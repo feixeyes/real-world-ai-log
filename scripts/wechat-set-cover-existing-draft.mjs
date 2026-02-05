@@ -235,7 +235,7 @@ async function openDraftByKeyword(page, token, keyword, outDir, perPage, maxPage
         return { ok: true, pageIndex: p, url: page.url(), method: 'explicit-edit-button' };
       }
 
-      // Heuristic: pick the middle of the 3 top-right icon buttons (trash / edit / publish).
+      // Heuristic: click the actual editor link if present (most reliable).
       const clicked = await page.evaluate((keyword) => {
         function visible(el) {
           const r = el.getBoundingClientRect();
@@ -252,7 +252,19 @@ async function openDraftByKeyword(page, token, keyword, outDir, perPage, maxPage
         const root = /** @type {HTMLElement} */ (candidates[0]);
         if (!root) return false;
 
-        // Collect visible buttons in top-right area of this root.
+        const links = Array.from(root.querySelectorAll('a'))
+          .filter((a) => a instanceof HTMLAnchorElement)
+          .filter((a) => visible(a))
+          .filter((a) => {
+            const href = a.getAttribute('href') || '';
+            return /appmsg/.test(href) && /edit/.test(href);
+          });
+        if (links.length) {
+          links[0].click();
+          return true;
+        }
+
+        // Next: try icon buttons in top-right area (trash/edit/publish). Choose middle by x.
         const rb = root.getBoundingClientRect();
         const buttons = Array.from(root.querySelectorAll('button, a'))
           .filter((n) => n instanceof HTMLElement)
@@ -263,33 +275,27 @@ async function openDraftByKeyword(page, token, keyword, outDir, perPage, maxPage
             title: n.getAttribute('title') || n.getAttribute('aria-label') || ''
           }))
           .filter((o) => {
-            // inside the root box
             const cx = o.r.left + o.r.width / 2;
             const cy = o.r.top + o.r.height / 2;
             if (cx < rb.left || cx > rb.right || cy < rb.top || cy > rb.bottom) return false;
-            // near top-right
             const nearTop = (cy - rb.top) < 80;
             const nearRight = (rb.right - cx) < 160;
             return nearTop && nearRight;
           });
 
-        // Prefer explicit titles
         for (const o of buttons) {
           if (/编辑|修改/.test(o.title)) {
             o.el.click();
             return true;
           }
         }
-
         if (buttons.length >= 2) {
-          // Sort left-to-right and click middle
           buttons.sort((a, b) => a.r.left - b.r.left);
           const mid = buttons[Math.floor(buttons.length / 2)];
           mid.el.click();
           return true;
         }
 
-        // fallback: double click root
         root.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
         return true;
       }, keyword);
