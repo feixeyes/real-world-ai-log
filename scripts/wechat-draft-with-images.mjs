@@ -74,7 +74,7 @@ async function ensureToken(page, outDir) {
 }
 
 async function placeCursorAfterText(page, needle) {
-  await page.evaluate((needle) => {
+  return await page.evaluate((needle) => {
     function findTextNode(root) {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       let node;
@@ -315,8 +315,15 @@ function parseArgs(argv) {
     markdownPath: argv[2] && !argv[2].startsWith('--') ? argv[2] : null,
     cookieFile: argv[3] && !argv[3].startsWith('--') ? argv[3] : null,
     outDir: argv[4] && !argv[4].startsWith('--') ? argv[4] : null,
+
+    // image filenames in material picker
     illus1: 'illus-1-loop.png',
     illus2: 'illus-2-memory.png',
+
+    // where to insert illustrations (anchor text inside editor)
+    illus1After: '## 4. 最小可用模板',
+    illus2After: '## 5. 更新机制',
+
     // Fallback selection by index under "最近使用" when filename is not visible.
     // 0 = first tile, 1 = second tile...
     cover: 'cover.png',
@@ -334,6 +341,8 @@ function parseArgs(argv) {
     else if (a === '--cover-index' && argv[i + 1]) args.coverIndex = Number(argv[++i]);
     else if (a === '--illus1' && argv[i + 1]) args.illus1 = argv[++i];
     else if (a === '--illus2' && argv[i + 1]) args.illus2 = argv[++i];
+    else if (a === '--illus1-after' && argv[i + 1]) args.illus1After = argv[++i];
+    else if (a === '--illus2-after' && argv[i + 1]) args.illus2After = argv[++i];
     else if (a === '--illus1-index' && argv[i + 1]) args.illus1Index = Number(argv[++i]);
     else if (a === '--illus2-index' && argv[i + 1]) args.illus2Index = Number(argv[++i]);
     else if (a === '--help' || a === '-h') args.help = true;
@@ -352,8 +361,8 @@ Usage (legacy positional):
 Usage (flags):
   node scripts/wechat-draft-with-images.mjs --md content/drafts/xxx.md --cookie /path/cookies.txt --out .tmp/wechat-draft \
     --cover cover.png --cover-index 0 \
-    --illus1 illus-1-loop.png --illus2 illus-2-memory.png \
-    --illus1-index 0 --illus2-index 1
+    --illus1 illus-1.png --illus1-after "## 4. ..." --illus1-index 0 \
+    --illus2 illus-2.png --illus2-after "## 5. ..." --illus2-index 1
 
 Notes:
 - Images are selected from the picker dialog; prefer using Recently Used uploads.
@@ -452,17 +461,29 @@ Notes:
   // Set cover (best-effort)
   const coverResult = await setCoverFromMaterial(page, outDir, args.cover, args.coverIndex);
 
-  // Insert illustration 1 after section about loop
-  await placeCursorAfterText(page, '闭环流程');
-  await page.keyboard.press('Enter');
-  await openImageDialog(page, outDir, 'loop');
-  await selectImageByFilename(page, args.illus1, outDir, 'loop', args.illus1Index);
+  // Insert illustration 1
+  {
+    const ok = await placeCursorAfterText(page, args.illus1After);
+    if (!ok) {
+      await screenshot(page, outDir, 'illus1-anchor-missing.png');
+      throw new Error(`Illustration 1 anchor not found in editor: ${args.illus1After}`);
+    }
+    await page.keyboard.press('Enter');
+    await openImageDialog(page, outDir, 'illus1');
+    await selectImageByFilename(page, args.illus1, outDir, 'illus1', args.illus1Index);
+  }
 
-  // Insert illustration 2 after section about memory
-  await placeCursorAfterText(page, '上下文与记忆');
-  await page.keyboard.press('Enter');
-  await openImageDialog(page, outDir, 'mem');
-  await selectImageByFilename(page, args.illus2, outDir, 'mem', args.illus2Index);
+  // Insert illustration 2
+  {
+    const ok = await placeCursorAfterText(page, args.illus2After);
+    if (!ok) {
+      await screenshot(page, outDir, 'illus2-anchor-missing.png');
+      throw new Error(`Illustration 2 anchor not found in editor: ${args.illus2After}`);
+    }
+    await page.keyboard.press('Enter');
+    await openImageDialog(page, outDir, 'illus2');
+    await selectImageByFilename(page, args.illus2, outDir, 'illus2', args.illus2Index);
+  }
 
   await screenshot(page, outDir, '04-inserted.png');
 
