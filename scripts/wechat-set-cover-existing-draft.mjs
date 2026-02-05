@@ -335,7 +335,6 @@ async function openDraftByKeyword(page, token, keyword, outDir, perPage, maxPage
         }
       }
     }
-    }
   }
   return { ok: false, reason: `draft not found by keyword: ${keyword}` };
 }
