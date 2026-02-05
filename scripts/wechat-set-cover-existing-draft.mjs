@@ -240,79 +240,19 @@ async function openDraftByKeyword(page, token, keyword, outDir, perPage, maxPage
         }
       }
 
-      // Heuristic: click the actual editor link if present (most reliable).
-      const clicked = await page.evaluate((keyword) => {
-        function visible(el) {
-          const r = el.getBoundingClientRect();
-          const st = getComputedStyle(el);
-          return r.width > 10 && r.height > 10 && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
-        }
-
-        // Find the smallest container that contains keyword (card)
-        const candidates = Array.from(document.querySelectorAll('div, li, section, article'))
-          .filter((el) => el instanceof HTMLElement)
-          .filter((el) => visible(el))
-          .filter((el) => (el.innerText || '').includes(keyword));
-        candidates.sort((a, b) => (a.innerText || '').length - (b.innerText || '').length);
-        const root = /** @type {HTMLElement} */ (candidates[0]);
-        if (!root) return false;
-
-        const links = Array.from(root.querySelectorAll('a'))
-          .filter((a) => a instanceof HTMLAnchorElement)
-          .filter((a) => visible(a))
-          .filter((a) => {
-            const href = a.getAttribute('href') || '';
-            return /appmsg/.test(href) && /edit/.test(href);
-          });
-        if (links.length) {
-          links[0].click();
-          return true;
-        }
-
-        // Next: try icon buttons in top-right area (trash/edit/publish). Choose middle by x.
-        const rb = root.getBoundingClientRect();
-        const buttons = Array.from(root.querySelectorAll('button, a'))
-          .filter((n) => n instanceof HTMLElement)
-          .filter((n) => visible(n))
-          .map((n) => ({
-            el: /** @type {HTMLElement} */ (n),
-            r: n.getBoundingClientRect(),
-            title: n.getAttribute('title') || n.getAttribute('aria-label') || ''
-          }))
-          .filter((o) => {
-            const cx = o.r.left + o.r.width / 2;
-            const cy = o.r.top + o.r.height / 2;
-            if (cx < rb.left || cx > rb.right || cy < rb.top || cy > rb.bottom) return false;
-            const nearTop = (cy - rb.top) < 80;
-            const nearRight = (rb.right - cx) < 160;
-            return nearTop && nearRight;
-          });
-
-        for (const o of buttons) {
-          if (/编辑|修改/.test(o.title)) {
-            o.el.click();
-            return true;
-          }
-        }
-        if (buttons.length >= 2) {
-          buttons.sort((a, b) => a.r.left - b.r.left);
-          const mid = buttons[Math.floor(buttons.length / 2)];
-          mid.el.click();
-          return true;
-        }
-
-        root.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-        return true;
-      }, keyword);
-
-      if (clicked) {
+      // Heuristic: click the edit icon button inside this card.
+      // In the UI we saw, there are 3 icon buttons at top-right (trash / edit / publish), and edit is the middle one.
+      const iconButtons = card.getByRole('button');
+      const bn = await iconButtons.count();
+      if (bn >= 2) {
+        await iconButtons.nth(1).click().catch(() => undefined);
         try {
           await page.waitForURL(/appmsg.*edit/i, { timeout: 10000 });
         } catch {}
         await page.waitForTimeout(1500);
         await screenshot(page, outDir, 'draft-opened.png');
         if (/appmsg.*edit/i.test(page.url())) {
-          return { ok: true, pageIndex: p, url: page.url(), method: 'heuristic-icon' };
+          return { ok: true, pageIndex: p, url: page.url(), method: 'card-button-nth1' };
         }
       }
 
