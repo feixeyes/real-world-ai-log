@@ -230,9 +230,14 @@ async function openDraftByKeyword(page, token, keyword, outDir, perPage, maxPage
       const explicitEdit = card.getByRole('button', { name: /编辑|修改/ });
       if (await explicitEdit.count()) {
         await explicitEdit.first().click();
-        await page.waitForTimeout(4500);
+        try {
+          await page.waitForURL(/appmsg.*edit/i, { timeout: 10000 });
+        } catch {}
+        await page.waitForTimeout(1500);
         await screenshot(page, outDir, 'draft-opened.png');
-        return { ok: true, pageIndex: p, url: page.url(), method: 'explicit-edit-button' };
+        if (/appmsg.*edit/i.test(page.url())) {
+          return { ok: true, pageIndex: p, url: page.url(), method: 'explicit-edit-button' };
+        }
       }
 
       // Heuristic: click the actual editor link if present (most reliable).
@@ -301,10 +306,35 @@ async function openDraftByKeyword(page, token, keyword, outDir, perPage, maxPage
       }, keyword);
 
       if (clicked) {
-        await page.waitForTimeout(4500);
+        try {
+          await page.waitForURL(/appmsg.*edit/i, { timeout: 10000 });
+        } catch {}
+        await page.waitForTimeout(1500);
         await screenshot(page, outDir, 'draft-opened.png');
-        return { ok: true, pageIndex: p, url: page.url(), method: 'heuristic-icon' };
+        if (/appmsg.*edit/i.test(page.url())) {
+          return { ok: true, pageIndex: p, url: page.url(), method: 'heuristic-icon' };
+        }
       }
+
+      // Last resort: click the pencil icon by coordinates inside the hovered card.
+      const box = await card.boundingBox().catch(() => null);
+      if (box) {
+        const y = box.y + 28;
+        const candidates = [box.x + box.width - 110, box.x + box.width - 80, box.x + box.width - 50];
+        for (const x of candidates) {
+          await page.mouse.click(x, y).catch(() => undefined);
+          try {
+            await page.waitForURL(/appmsg.*edit/i, { timeout: 8000 });
+            break;
+          } catch {}
+        }
+        await page.waitForTimeout(1200);
+        await screenshot(page, outDir, 'draft-opened.png');
+        if (/appmsg.*edit/i.test(page.url())) {
+          return { ok: true, pageIndex: p, url: page.url(), method: 'coord-click' };
+        }
+      }
+    }
     }
   }
   return { ok: false, reason: `draft not found by keyword: ${keyword}` };
