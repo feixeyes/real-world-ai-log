@@ -370,12 +370,31 @@ Notes:
   }
 
   if (!titleFilled) {
-    // Fallback: click the visible placeholder text "请在这里输入标题" then type
+    // Fallback A: try to fill hidden #title input/textarea via DOM (Playwright can't click invisible placeholders)
+    const ok = await page.evaluate((t) => {
+      const el = document.querySelector('#title, input#title, textarea#title');
+      if (!el) return false;
+      // @ts-ignore
+      el.value = t;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      // try focus related editable area
+      const label = document.querySelector('label[for="title"]');
+      if (label) (label as HTMLElement).click?.();
+      return true;
+    }, title.slice(0, 64));
+    if (ok) titleFilled = true;
+  }
+
+  if (!titleFilled) {
+    // Fallback B: click the placeholder text (best-effort) then type
     const placeholder = page.getByText('请在这里输入标题', { exact: true });
     if (await placeholder.count()) {
-      await placeholder.first().click();
-      await page.keyboard.type(title.slice(0, 64));
-      titleFilled = true;
+      try {
+        await placeholder.first().click({ timeout: 3000 });
+        await page.keyboard.type(title.slice(0, 64));
+        titleFilled = true;
+      } catch {}
     }
   }
 
