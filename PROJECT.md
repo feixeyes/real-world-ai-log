@@ -23,6 +23,10 @@
 Pipeline:
 - `content/ideas/` → `content/outlines/` → `content/drafts/` → `content/published/`
 
+Notes:
+- `drafts/` is a working area.
+- `published/` stores the final text version at the time of publishing (used for review/retrospective and re-distribution).
+
 Supporting areas:
 - `research/` references
 - `data/` feedback & review notes

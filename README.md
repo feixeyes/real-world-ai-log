@@ -73,8 +73,8 @@ Agents are collaborators, not autonomous authors.
 content/
   ideas/        灵感、碎片想法
   outlines/     文章大纲
-  drafts/       初稿
-  published/    已发布文章
+  drafts/       初稿（工作稿；可包含未发布的内容）
+  published/    已发布归档（发布时的最终文本版本；用于复盘/再分发）
 
 research/
   背景资料、引用、外部材料
