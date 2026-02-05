@@ -135,7 +135,7 @@ async function openImageDialog(page, outDir, tag) {
   throw new Error(`Could not open image dialog (${tag}): 图片 menu not found`);
 }
 
-async function selectImageByFilename(page, filename, outDir, tag) {
+async function selectImageByFilename(page, filename, outDir, tag, fallbackIndex = 0) {
   await page.waitForTimeout(1500);
 
   // Prefer tabs that show recently uploaded items.
@@ -156,34 +156,40 @@ async function selectImageByFilename(page, filename, outDir, tag) {
     }
   }
 
-  // Strategy B: pick the first visible image tile/card (usually latest)
-  const picked = await page.evaluate(() => {
+  // Strategy B: pick a visible image tile/card by index (prefer Recently Used list)
+  const picked = await page.evaluate((fallbackIndex) => {
     const selectors = [
-      'li',
+      // image picker tiles
       '.weui-desktop-media__item',
       '.weui-desktop-img-picker__item',
-      '[class*="img"]',
-      '[class*="image"]'
+      // generic list items
+      'li'
     ];
     function visible(el) {
       const r = el.getBoundingClientRect();
       const st = getComputedStyle(el);
-      return r.width > 20 && r.height > 20 && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
+      return r.width > 40 && r.height > 40 && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
     }
+
+    const tiles = [];
     for (const sel of selectors) {
-      const nodes = Array.from(document.querySelectorAll(sel));
-      for (const n of nodes) {
+      for (const n of Array.from(document.querySelectorAll(sel))) {
         if (!(n instanceof HTMLElement)) continue;
         if (!visible(n)) continue;
-        // prefer things that look like tiles
+        // avoid huge containers
         const txt = (n.innerText || '').trim();
-        if (txt && txt.length > 200) continue;
-        n.click();
-        return true;
+        if (txt && txt.length > 300) continue;
+        tiles.push(n);
       }
+      if (tiles.length) break;
     }
-    return false;
-  });
+
+    const idx = Number.isFinite(fallbackIndex) ? Math.max(0, Math.floor(fallbackIndex)) : 0;
+    const target = tiles[idx] || tiles[0];
+    if (!target) return false;
+    target.click();
+    return true;
+  }, fallbackIndex);
 
   if (!picked) {
     await screenshot(page, outDir, `dlg-miss-${tag}.png`);
@@ -235,6 +241,10 @@ function parseArgs(argv) {
     outDir: argv[4] && !argv[4].startsWith('--') ? argv[4] : null,
     illus1: 'illus-1-loop.png',
     illus2: 'illus-2-memory.png',
+    // Fallback selection by index under "最近使用" when filename is not visible.
+    // 0 = first tile, 1 = second tile...
+    illus1Index: 0,
+    illus2Index: 1,
   };
 
   for (let i = 2; i < argv.length; i++) {
@@ -244,6 +254,8 @@ function parseArgs(argv) {
     else if (a === '--out' && argv[i + 1]) args.outDir = argv[++i];
     else if (a === '--illus1' && argv[i + 1]) args.illus1 = argv[++i];
     else if (a === '--illus2' && argv[i + 1]) args.illus2 = argv[++i];
+    else if (a === '--illus1-index' && argv[i + 1]) args.illus1Index = Number(argv[++i]);
+    else if (a === '--illus2-index' && argv[i + 1]) args.illus2Index = Number(argv[++i]);
     else if (a === '--help' || a === '-h') args.help = true;
   }
   return args;
@@ -259,7 +271,8 @@ Usage (legacy positional):
 
 Usage (flags):
   node scripts/wechat-draft-with-images.mjs --md content/drafts/xxx.md --cookie /path/cookies.txt --out .tmp/wechat-draft \
-    --illus1 illus-1-loop.png --illus2 illus-2-memory.png
+    --illus1 illus-1-loop.png --illus2 illus-2-memory.png \
+    --illus1-index 0 --illus2-index 1
 
 Notes:
 - Images are selected from the picker dialog; prefer using Recently Used uploads.
@@ -340,13 +353,13 @@ Notes:
   await placeCursorAfterText(page, '闭环流程');
   await page.keyboard.press('Enter');
   await openImageDialog(page, outDir, 'loop');
-  await selectImageByFilename(page, args.illus1, outDir, 'loop');
+  await selectImageByFilename(page, args.illus1, outDir, 'loop', args.illus1Index);
 
   // Insert illustration 2 after section about memory
   await placeCursorAfterText(page, '上下文与记忆');
   await page.keyboard.press('Enter');
   await openImageDialog(page, outDir, 'mem');
-  await selectImageByFilename(page, args.illus2, outDir, 'mem');
+  await selectImageByFilename(page, args.illus2, outDir, 'mem', args.illus2Index);
 
   await screenshot(page, outDir, '04-inserted.png');
 
