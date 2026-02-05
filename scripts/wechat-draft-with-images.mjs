@@ -324,10 +324,13 @@ function parseArgs(argv) {
     illus1After: '## 4. 最小可用模板',
     illus2After: '## 5. 更新机制',
 
+    // cover
+    noCover: false,
     // Fallback selection by index under "最近使用" when filename is not visible.
     // 0 = first tile, 1 = second tile...
     cover: 'cover.png',
     coverIndex: 0,
+
     illus1Index: 0,
     illus2Index: 1,
   };
@@ -337,6 +340,7 @@ function parseArgs(argv) {
     if (a === '--md' && argv[i + 1]) args.markdownPath = argv[++i];
     else if (a === '--cookie' && argv[i + 1]) args.cookieFile = argv[++i];
     else if (a === '--out' && argv[i + 1]) args.outDir = argv[++i];
+    else if (a === '--no-cover') args.noCover = true;
     else if (a === '--cover' && argv[i + 1]) args.cover = argv[++i];
     else if (a === '--cover-index' && argv[i + 1]) args.coverIndex = Number(argv[++i]);
     else if (a === '--illus1' && argv[i + 1]) args.illus1 = argv[++i];
@@ -360,9 +364,15 @@ Usage (legacy positional):
 
 Usage (flags):
   node scripts/wechat-draft-with-images.mjs --md content/drafts/xxx.md --cookie /path/cookies.txt --out .tmp/wechat-draft \
+    --no-cover \
+    --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \
+    --illus2 illus-2.png --illus2-after "..." --illus2-index 1
+
+  # or enable cover (best-effort):
+  node scripts/wechat-draft-with-images.mjs --md content/drafts/xxx.md --cookie /path/cookies.txt --out .tmp/wechat-draft \
     --cover cover.png --cover-index 0 \
-    --illus1 illus-1.png --illus1-after "## 4. ..." --illus1-index 0 \
-    --illus2 illus-2.png --illus2-after "## 5. ..." --illus2-index 1
+    --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \
+    --illus2 illus-2.png --illus2-after "..." --illus2-index 1
 
 Notes:
 - Images are selected from the picker dialog; prefer using Recently Used uploads.
@@ -459,7 +469,9 @@ Notes:
   await screenshot(page, outDir, '03-filled-text.png');
 
   // Set cover (best-effort)
-  const coverResult = await setCoverFromMaterial(page, outDir, args.cover, args.coverIndex);
+  const coverResult = args.noCover
+    ? { ok: false, skipped: true }
+    : await setCoverFromMaterial(page, outDir, args.cover, args.coverIndex);
 
   // Insert illustration 1
   {
