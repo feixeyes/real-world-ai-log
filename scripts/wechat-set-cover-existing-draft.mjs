@@ -219,68 +219,86 @@ async function openDraftByKeyword(page, token, keyword, outDir, perPage, maxPage
     await page.waitForTimeout(3000);
     await screenshot(page, outDir, `drafts-${String(p).padStart(2, '0')}.png`);
 
-    // In the draft list, clicking the title may only select the card.
-    // We want to open the editor via the "edit" (pencil) control inside the matched card.
-    const clicked = await page.evaluate((keyword) => {
-      function visible(el) {
-        const r = el.getBoundingClientRect();
-        const st = getComputedStyle(el);
-        return r.width > 5 && r.height > 5 && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
+    // In the draft list, open the editor via the card's action buttons (trash/edit/publish).
+    // These buttons often only appear on hover.
+    const card = page.locator('div, li, section, article').filter({ hasText: keyword }).first();
+    if (await card.count()) {
+      await card.hover().catch(() => undefined);
+      await page.waitForTimeout(800);
+
+      // First try: an explicit "编辑" label.
+      const explicitEdit = card.getByRole('button', { name: /编辑|修改/ });
+      if (await explicitEdit.count()) {
+        await explicitEdit.first().click();
+        await page.waitForTimeout(4500);
+        await screenshot(page, outDir, 'draft-opened.png');
+        return { ok: true, pageIndex: p, url: page.url(), method: 'explicit-edit-button' };
       }
 
-      // Try locate a card-like container that contains the keyword.
-      const candidates = Array.from(document.querySelectorAll('div, li, section, article'))
-        .filter((el) => el instanceof HTMLElement)
-        .filter((el) => visible(el))
-        .filter((el) => (el.innerText || '').includes(keyword));
+      // Heuristic: pick the middle of the 3 top-right icon buttons (trash / edit / publish).
+      const clicked = await page.evaluate((keyword) => {
+        function visible(el) {
+          const r = el.getBoundingClientRect();
+          const st = getComputedStyle(el);
+          return r.width > 10 && r.height > 10 && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
+        }
 
-      // Prefer smaller, more specific containers.
-      candidates.sort((a, b) => (a.innerText || '').length - (b.innerText || '').length);
+        // Find the smallest container that contains keyword (card)
+        const candidates = Array.from(document.querySelectorAll('div, li, section, article'))
+          .filter((el) => el instanceof HTMLElement)
+          .filter((el) => visible(el))
+          .filter((el) => (el.innerText || '').includes(keyword));
+        candidates.sort((a, b) => (a.innerText || '').length - (b.innerText || '').length);
+        const root = /** @type {HTMLElement} */ (candidates[0]);
+        if (!root) return false;
 
-      for (const card of candidates.slice(0, 20)) {
-        const root = /** @type {HTMLElement} */ (card);
+        // Collect visible buttons in top-right area of this root.
+        const rb = root.getBoundingClientRect();
+        const buttons = Array.from(root.querySelectorAll('button, a'))
+          .filter((n) => n instanceof HTMLElement)
+          .filter((n) => visible(n))
+          .map((n) => ({
+            el: /** @type {HTMLElement} */ (n),
+            r: n.getBoundingClientRect(),
+            title: n.getAttribute('title') || n.getAttribute('aria-label') || ''
+          }))
+          .filter((o) => {
+            // inside the root box
+            const cx = o.r.left + o.r.width / 2;
+            const cy = o.r.top + o.r.height / 2;
+            if (cx < rb.left || cx > rb.right || cy < rb.top || cy > rb.bottom) return false;
+            // near top-right
+            const nearTop = (cy - rb.top) < 80;
+            const nearRight = (rb.right - cx) < 160;
+            return nearTop && nearRight;
+          });
 
-        // Common edit controls: a/button with title/aria-label containing 编辑/修改; or class name includes edit.
-        const selectors = [
-          'a[title*="编辑"]',
-          'button[title*="编辑"]',
-          'a[aria-label*="编辑"]',
-          'button[aria-label*="编辑"]',
-          '[class*="edit"]',
-          '[data-action*="edit"]'
-        ];
-        for (const sel of selectors) {
-          const nodes = Array.from(root.querySelectorAll(sel)).filter((n) => n instanceof HTMLElement && visible(n));
-          if (nodes.length) {
-            nodes[0].click();
+        // Prefer explicit titles
+        for (const o of buttons) {
+          if (/编辑|修改/.test(o.title)) {
+            o.el.click();
             return true;
           }
         }
 
-        // Fallback: click the title area itself (some UIs open editor on double click)
+        if (buttons.length >= 2) {
+          // Sort left-to-right and click middle
+          buttons.sort((a, b) => a.r.left - b.r.left);
+          const mid = buttons[Math.floor(buttons.length / 2)];
+          mid.el.click();
+          return true;
+        }
+
+        // fallback: double click root
         root.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
         return true;
-      }
+      }, keyword);
 
-      // Last resort: click the first occurrence of keyword
-      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-      let node;
-      while ((node = walker.nextNode())) {
-        if (node.nodeValue && node.nodeValue.includes(keyword)) {
-          const el = node.parentElement;
-          if (el && visible(el)) {
-            el.click();
-            return true;
-          }
-        }
+      if (clicked) {
+        await page.waitForTimeout(4500);
+        await screenshot(page, outDir, 'draft-opened.png');
+        return { ok: true, pageIndex: p, url: page.url(), method: 'heuristic-icon' };
       }
-      return false;
-    }, keyword);
-
-    if (clicked) {
-      await page.waitForTimeout(4500);
-      await screenshot(page, outDir, 'draft-opened.png');
-      return { ok: true, pageIndex: p, url: page.url() };
     }
   }
   return { ok: false, reason: `draft not found by keyword: ${keyword}` };
