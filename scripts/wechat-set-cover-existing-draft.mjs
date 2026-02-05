@@ -219,11 +219,66 @@ async function openDraftByKeyword(page, token, keyword, outDir, perPage, maxPage
     await page.waitForTimeout(3000);
     await screenshot(page, outDir, `drafts-${String(p).padStart(2, '0')}.png`);
 
-    // Find a visible element containing the keyword.
-    const titleLoc = page.getByText(keyword, { exact: false }).first();
-    if (await titleLoc.count()) {
-      await titleLoc.click();
-      await page.waitForTimeout(4000);
+    // In the draft list, clicking the title may only select the card.
+    // We want to open the editor via the "edit" (pencil) control inside the matched card.
+    const clicked = await page.evaluate((keyword) => {
+      function visible(el) {
+        const r = el.getBoundingClientRect();
+        const st = getComputedStyle(el);
+        return r.width > 5 && r.height > 5 && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
+      }
+
+      // Try locate a card-like container that contains the keyword.
+      const candidates = Array.from(document.querySelectorAll('div, li, section, article'))
+        .filter((el) => el instanceof HTMLElement)
+        .filter((el) => visible(el))
+        .filter((el) => (el.innerText || '').includes(keyword));
+
+      // Prefer smaller, more specific containers.
+      candidates.sort((a, b) => (a.innerText || '').length - (b.innerText || '').length);
+
+      for (const card of candidates.slice(0, 20)) {
+        const root = /** @type {HTMLElement} */ (card);
+
+        // Common edit controls: a/button with title/aria-label containing 编辑/修改; or class name includes edit.
+        const selectors = [
+          'a[title*="编辑"]',
+          'button[title*="编辑"]',
+          'a[aria-label*="编辑"]',
+          'button[aria-label*="编辑"]',
+          '[class*="edit"]',
+          '[data-action*="edit"]'
+        ];
+        for (const sel of selectors) {
+          const nodes = Array.from(root.querySelectorAll(sel)).filter((n) => n instanceof HTMLElement && visible(n));
+          if (nodes.length) {
+            nodes[0].click();
+            return true;
+          }
+        }
+
+        // Fallback: click the title area itself (some UIs open editor on double click)
+        root.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+        return true;
+      }
+
+      // Last resort: click the first occurrence of keyword
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) {
+        if (node.nodeValue && node.nodeValue.includes(keyword)) {
+          const el = node.parentElement;
+          if (el && visible(el)) {
+            el.click();
+            return true;
+          }
+        }
+      }
+      return false;
+    }, keyword);
+
+    if (clicked) {
+      await page.waitForTimeout(4500);
       await screenshot(page, outDir, 'draft-opened.png');
       return { ok: true, pageIndex: p, url: page.url() };
     }
