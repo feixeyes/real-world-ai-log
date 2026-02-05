@@ -231,28 +231,54 @@ async function clickFirstVisibleButtonByText(page, regexes) {
 }
 
 async function setCoverFromMaterial(page, outDir, coverFilename, coverIndex = 0) {
-  // Best-effort: open cover dialog
-  const opened = await clickFirstVisibleButtonByText(page, [
+  // WeChat's cover entry varies:
+  // - Sometimes a button: 选择封面/设置封面
+  // - Sometimes an area: "拖拽或选择封面"
+  // - Sometimes clicking the left thumbnail (标题卡片) opens cover selector
+
+  // Try A: explicit cover buttons
+  let opened = await clickFirstVisibleButtonByText(page, [
     /选择封面/, /设置封面/, /更换封面/, /^封面$/
   ]);
+
+  // Try B: cover dropzone text (commonly shown below the editor)
+  if (!opened) {
+    const drop = page.getByText(/拖拽.*选择封面|选择封面/, { exact: false });
+    if (await drop.count()) {
+      try {
+        await drop.first().scrollIntoViewIfNeeded();
+        await drop.first().click({ timeout: 3000 });
+        opened = true;
+      } catch {}
+    }
+  }
+
+  // Try C: click left-side cover thumbnail/card
+  if (!opened) {
+    const leftCard = page.locator('aside, .left, .appmsg_left, body').getByText('标题', { exact: true }).first();
+    if (await leftCard.count()) {
+      try {
+        await leftCard.click({ timeout: 3000 });
+        opened = true;
+      } catch {}
+    }
+  }
+
   if (!opened) {
     await screenshot(page, outDir, 'cover-open-missing.png');
-    return { ok: false, reason: 'cover button not found' };
+    return { ok: false, reason: 'cover entry not found' };
   }
+
   await page.waitForTimeout(2000);
   await screenshot(page, outDir, 'cover-01-opened.png');
 
   // Try enter material-library picker
-  // Some UIs show tabs/buttons like: 从素材库选择 / 素材库 / 图片库
-  const entered = await clickFirstVisibleButtonByText(page, [
+  await clickFirstVisibleButtonByText(page, [
     /从素材库选择/, /素材库选择/, /素材库/, /图片库/
-  ]);
-  if (entered) {
-    await page.waitForTimeout(1500);
-    await screenshot(page, outDir, 'cover-02-enter-material.png');
-  }
+  ]).catch(() => false);
+  await page.waitForTimeout(1500);
+  await screenshot(page, outDir, 'cover-02-picker.png');
 
-  // Now we are (hopefully) in an image picker dialog; reuse selection logic.
   try {
     await selectImageByFilename(page, coverFilename, outDir, 'cover', coverIndex);
   } catch (e) {
@@ -260,7 +286,6 @@ async function setCoverFromMaterial(page, outDir, coverFilename, coverIndex = 0)
     return { ok: false, reason: `select cover failed: ${e?.message || e}` };
   }
 
-  // Some cover flows need an extra confirmation/next step.
   await clickFirstVisibleButtonByText(page, [/下一步/, /确定/, /确认/, /完成/, /使用该封面/]).catch(() => undefined);
   await page.waitForTimeout(2000);
   await screenshot(page, outDir, 'cover-04-after.png');
