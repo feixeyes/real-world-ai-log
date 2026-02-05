@@ -48,9 +48,11 @@ node scripts/wechat-upload-images.mjs \
 
 ```bash
 node scripts/wechat-draft-with-images.mjs \
-  content/drafts/<article>.md \
-  /path/to/wechat-cookies.txt \
-  .tmp/wechat-draft
+  --md content/drafts/<article>.md \
+  --cookie /path/to/wechat-cookies.txt \
+  --out .tmp/wechat-draft \
+  --illus1 illus-1-loop.png \
+  --illus2 illus-2-memory.png
 ```
 
 Artifacts:

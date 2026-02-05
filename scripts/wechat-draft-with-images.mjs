@@ -226,10 +226,51 @@ async function setCoverFromMaterial(page, outDir) {
   return false;
 }
 
+function parseArgs(argv) {
+  // Backward compatible:
+  //   node wechat-draft-with-images.mjs <markdownPath> <cookieFile> <outDir>
+  const args = {
+    markdownPath: argv[2] && !argv[2].startsWith('--') ? argv[2] : null,
+    cookieFile: argv[3] && !argv[3].startsWith('--') ? argv[3] : null,
+    outDir: argv[4] && !argv[4].startsWith('--') ? argv[4] : null,
+    illus1: 'illus-1-loop.png',
+    illus2: 'illus-2-memory.png',
+  };
+
+  for (let i = 2; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--md' && argv[i + 1]) args.markdownPath = argv[++i];
+    else if (a === '--cookie' && argv[i + 1]) args.cookieFile = argv[++i];
+    else if (a === '--out' && argv[i + 1]) args.outDir = argv[++i];
+    else if (a === '--illus1' && argv[i + 1]) args.illus1 = argv[++i];
+    else if (a === '--illus2' && argv[i + 1]) args.illus2 = argv[++i];
+    else if (a === '--help' || a === '-h') args.help = true;
+  }
+  return args;
+}
+
 async function main() {
-  const markdownPath = process.argv[2] || '/home/fei/clawd/code/real-world-ai-log/content/drafts/five-questions-building-agents.md';
-  const cookieFile = process.argv[3] || '/home/fei/.openclaw/media/inbound/114d4d1f-6ce9-4ad1-87c4-71a997a719d1.txt';
-  const outDir = process.argv[4] || '/home/fei/clawd/.tmp/wechat-with-images';
+  const args = parseArgs(process.argv);
+  if (args.help) {
+    console.log(`Create a WeChat Official Account article draft and insert images from material library.
+
+Usage (legacy positional):
+  node scripts/wechat-draft-with-images.mjs <markdownPath> <cookieFile> <outDir>
+
+Usage (flags):
+  node scripts/wechat-draft-with-images.mjs --md content/drafts/xxx.md --cookie /path/cookies.txt --out .tmp/wechat-draft \
+    --illus1 illus-1-loop.png --illus2 illus-2-memory.png
+
+Notes:
+- Images are selected from the picker dialog; prefer using Recently Used uploads.
+- Screenshots are written to --out for audit.
+`);
+    return;
+  }
+
+  const markdownPath = args.markdownPath || '/home/fei/clawd/code/real-world-ai-log/content/drafts/five-questions-building-agents.md';
+  const cookieFile = args.cookieFile || '/home/fei/.openclaw/media/inbound/114d4d1f-6ce9-4ad1-87c4-71a997a719d1.txt';
+  const outDir = args.outDir || '/home/fei/clawd/.tmp/wechat-with-images';
   fs.mkdirSync(outDir, { recursive: true });
 
   const md = fs.readFileSync(markdownPath, 'utf8');
@@ -256,15 +297,14 @@ async function main() {
   await page.waitForTimeout(3500);
   await screenshot(page, outDir, '02-editor.png');
 
-  // Fill title: try any input with placeholder containing 标题
-  const titleLoc = page.locator('input').filter({ hasText: '' });
+  // Fill title (WeChat editor often uses a contenteditable title block, not <input>)
+  let titleFilled = false;
   const titleCandidates = [
     'input[name="title"]',
     'input[placeholder*="标题"]',
     'input[placeholder*="请输入标题"]',
     'input.js_title'
   ];
-  let titleFilled = false;
   for (const sel of titleCandidates) {
     const loc = page.locator(sel);
     if (await loc.count()) {
@@ -272,6 +312,16 @@ async function main() {
       await loc.first().fill(title.slice(0, 64));
       titleFilled = true;
       break;
+    }
+  }
+
+  if (!titleFilled) {
+    // Fallback: click the visible placeholder text "请在这里输入标题" then type
+    const placeholder = page.getByText('请在这里输入标题', { exact: true });
+    if (await placeholder.count()) {
+      await placeholder.first().click();
+      await page.keyboard.type(title.slice(0, 64));
+      titleFilled = true;
     }
   }
 
@@ -290,13 +340,13 @@ async function main() {
   await placeCursorAfterText(page, '闭环流程');
   await page.keyboard.press('Enter');
   await openImageDialog(page, outDir, 'loop');
-  await selectImageByFilename(page, 'illus-1-loop.png', outDir, 'loop');
+  await selectImageByFilename(page, args.illus1, outDir, 'loop');
 
   // Insert illustration 2 after section about memory
   await placeCursorAfterText(page, '上下文与记忆');
   await page.keyboard.press('Enter');
   await openImageDialog(page, outDir, 'mem');
-  await selectImageByFilename(page, 'illus-2-memory.png', outDir, 'mem');
+  await selectImageByFilename(page, args.illus2, outDir, 'mem');
 
   await screenshot(page, outDir, '04-inserted.png');
 
