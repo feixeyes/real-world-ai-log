@@ -95,11 +95,28 @@ async function placeCursorAtStart(page) {
 
 async function placeCursorAfterText(page, needle) {
   return await page.evaluate((needle) => {
+    function norm(s) {
+      return (s || '')
+        .toLowerCase()
+        .replace(/[\s\u00a0]+/g, '')
+        .replace(/[“”]/g, '"')
+        .replace(/[’]/g, "'");
+    }
+
     function findTextNode(root) {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       let node;
+      const nNeedle = norm(needle);
       while ((node = walker.nextNode())) {
-        if (node.nodeValue && node.nodeValue.includes(needle)) return node;
+        const v = node.nodeValue || '';
+        if (!v) continue;
+        if (v.includes(needle)) return { node, idx: v.indexOf(needle) + needle.length };
+        const nv = norm(v);
+        const k = nv.indexOf(nNeedle);
+        if (k >= 0) {
+          // Can't map normalized idx back reliably; fall back to end of this text node.
+          return { node, idx: v.length };
+        }
       }
       return null;
     }
@@ -109,12 +126,11 @@ async function placeCursorAfterText(page, needle) {
       || document.querySelector('[contenteditable="true"]');
     if (!editor) return false;
 
-    const tn = findTextNode(editor);
-    if (!tn) return false;
+    const found = findTextNode(editor);
+    if (!found) return false;
 
-    const idx = tn.nodeValue.indexOf(needle) + needle.length;
     const range = document.createRange();
-    range.setStart(tn, idx);
+    range.setStart(found.node, Math.min(found.idx, (found.node.nodeValue || '').length));
     range.collapse(true);
 
     const sel = window.getSelection();
