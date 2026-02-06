@@ -143,11 +143,22 @@ const wechatAbstract = clipAtPunctuation(String(parsed.wechatAbstract || ''), 12
 const oneLiner = clipAtPunctuation(String(parsed.oneLiner || ''), 45);
 const bulletsRaw = Array.isArray(parsed.bullets) ? parsed.bullets : [];
 const bullets = bulletsRaw
-  .map(x => clipAtPunctuation(String(x || ''), 20))
+  .map(x => clipAtPunctuation(String(x || ''), 24))
   .filter(Boolean)
   .slice(0, 3);
 
 while (bullets.length < 3) bullets.push('');
+
+// If bullets got clipped into awkward English fragments, do a best-effort rewrite.
+for (let i = 0; i < bullets.length; i++) {
+  bullets[i] = bullets[i]
+    .replace(/\bruntime\b/gi, '运行时')
+    .replace(/\brunt\b/gi, '运行时')
+    .replace(/\bcron\b/gi, '定时')
+    .replace(/\btools\b/gi, '工具')
+    .replace(/\bsessions\b/gi, '会话')
+    .replace(/\bchannels\b/gi, '通道');
+}
 
 const keywordsRaw = Array.isArray(parsed.keywords) ? parsed.keywords : [];
 const keywords = keywordsRaw.map(x => String(x || '').trim()).filter(Boolean).slice(0, 8);
