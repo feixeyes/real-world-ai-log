@@ -83,19 +83,17 @@
 
 ## Agent 执行规则 / Agent Execution Rules
 
-### write-article skill 必须遵守 / write-article skill MUST:
+### write-article skill 执行约定 / write-article skill execution note
 
-1. **在 Phase 3 (Task Breakdown) 阶段提议英文文件名**
-   Propose English filenames during Phase 3 (Task Breakdown)
+> Project rule update: **filenames no longer require explicit confirmation**.
+> Agents should pick sensible defaults following the rules above.
+> Only outline direction / topic choice still requires explicit confirmation.
 
-2. **向用户说明文件命名逻辑**
-   Explain the filename logic to the user
+1. **在 Phase 3 (Task Breakdown) 阶段给出英文文件名**
+   Provide English filenames during Phase 3 (Task Breakdown)
 
-3. **等待用户确认文件名**
-   Wait for user confirmation of the filename
-
-4. **只有在用户确认后才创建文件**
-   Only create files after user confirmation
+2. **向用户说明文件命名逻辑（可简短）**
+   Briefly explain naming logic when helpful
 
 ### 文件命名提议格式 / Filename Proposal Format
 
