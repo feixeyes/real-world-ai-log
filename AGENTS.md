@@ -40,7 +40,7 @@ Agents are collaborators, not autonomous authors.
    - All filenames MUST use English (see `NAMING_CONVENTIONS.md`)
    - Use lowercase letters with hyphens to separate words
    - Never use Chinese characters in filenames
-   - Propose and confirm filenames before creating files
+   - Filenames do **not** require confirmation before creating (use sensible defaults).
 
 5. **No authoritative tone**
    - This project does NOT present the author as an expert
@@ -95,8 +95,7 @@ Agents should follow this default sequence unless instructed otherwise:
 - WAIT for confirmation
 
 ### 3. Execution Phase
-- Propose English filenames following `NAMING_CONVENTIONS.md`
-- Wait for filename confirmation
+- Choose English filenames following `NAMING_CONVENTIONS.md` (no need to ask for confirmation)
 - Break work into small tasks:
   - Outline file → `content/outlines/<english-slug>.md`
   - Draft file → `content/drafts/<english-slug>.md`
