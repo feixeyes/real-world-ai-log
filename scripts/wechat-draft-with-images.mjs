@@ -73,6 +73,26 @@ async function ensureToken(page, outDir) {
   return token;
 }
 
+async function placeCursorAtStart(page) {
+  return await page.evaluate(() => {
+    const editor = document.querySelector('.ProseMirror[contenteditable="true"]')
+      || document.querySelector('[contenteditable="true"]');
+    if (!editor) return false;
+
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(true);
+
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    // @ts-ignore
+    editor.focus();
+    return true;
+  });
+}
+
 async function placeCursorAfterText(page, needle) {
   return await page.evaluate((needle) => {
     function findTextNode(root) {
@@ -447,7 +467,8 @@ function parseArgs(argv) {
     // 0 = first tile, 1 = second tile...
     cover: 'cover.png',
     coverIndex: 0,
-    // If cover-from-library fails, try picking first image from the article.
+    // Cover strategy is simplified: insert cover image into body first, then pick first image as cover.
+    // Kept for compatibility; currently only "article-first" is used.
     coverFallback: 'article-first',
 
     // abstract (WeChat 摘要, <=120 chars)
@@ -494,9 +515,12 @@ Usage (flags):
     --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \
     --illus2 illus-2.png --illus2-after "..." --illus2-index 1
 
-  # or enable cover (best-effort) + optional abstract:
+  # enable cover (recommended) + optional abstract:
+  # Cover strategy:
+  # - insert cover image as the FIRST image in the article body
+  # - set cover by "从正文选择" the FIRST image
   node scripts/wechat-draft-with-images.mjs --md content/drafts/xxx.md --cookie /path/cookies.txt --out .tmp/wechat-draft \
-    --cover cover.png --cover-index 0 --cover-fallback article-first \
+    --cover cover.png --cover-index 0 \
     --abstract "<=120字摘要" \
     --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \
     --illus2 illus-2.png --illus2-after "..." --illus2-index 1
@@ -595,15 +619,25 @@ Notes:
   await page.waitForTimeout(1500);
   await screenshot(page, outDir, '03-filled-text.png');
 
-  // Set cover (best-effort)
-  let coverResult = args.noCover
-    ? { ok: false, skipped: true }
-    : await setCoverFromMaterial(page, outDir, args.cover, args.coverIndex);
+  // Cover strategy (simplified, user-approved):
+  // 1) Always insert cover image as the FIRST image in the article body.
+  // 2) Always pick the FIRST article image as the cover ("从正文选择").
+  let coverResult = args.noCover ? { ok: false, skipped: true } : { ok: false };
+  if (!args.noCover) {
+    const atStart = await placeCursorAtStart(page);
+    if (!atStart) {
+      await screenshot(page, outDir, 'cover-body-cursor-start-missing.png');
+      coverResult = { ok: false, reason: 'could not place cursor at start for cover' };
+    } else {
+      await page.keyboard.press('Enter');
+      await openImageDialog(page, outDir, 'cover-body');
+      await selectImageByFilename(page, args.cover, outDir, 'cover-body', args.coverIndex);
+      await page.waitForTimeout(1200);
+      await screenshot(page, outDir, '03b-cover-inserted.png');
 
-  // Fallback: from-article-first-image (user-approved)
-  if (!args.noCover && (!coverResult || coverResult.ok !== true) && args.coverFallback === 'article-first') {
-    const fallback = await setCoverFromArticleFirstImage(page, outDir);
-    coverResult = fallback.ok ? { ok: true, via: 'article-first' } : { ...coverResult, fallback };
+      const fb = await setCoverFromArticleFirstImage(page, outDir);
+      coverResult = fb.ok ? { ok: true, via: 'article-first' } : { ok: false, fallback: fb };
+    }
   }
 
   // Fill abstract (WeChat 摘要)
