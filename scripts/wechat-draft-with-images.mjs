@@ -380,11 +380,18 @@ async function setCoverFromArticleFirstImage(page, outDir) {
   // Click menu item "从正文选择" (user-confirmed fallback)
   try {
     const entry = page.getByText(/从正文选择/, { exact: false }).first();
-    if (await entry.count()) {
-      await entry.click({ timeout: 5000 });
-    } else {
+    if (!(await entry.count())) {
       await screenshot(page, outDir, 'cover-article-entry-missing.png');
       return { ok: false, reason: '从正文选择 not found' };
+    }
+
+    // Sometimes the locator exists but is inside a hidden popover. Click by bbox when visible.
+    await entry.waitFor({ state: 'visible', timeout: 8000 });
+    const box = await entry.boundingBox().catch(() => null);
+    if (box && box.width > 5 && box.height > 5) {
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    } else {
+      await entry.click({ timeout: 8000 });
     }
   } catch (e) {
     await screenshot(page, outDir, 'cover-article-entry-click-failed.png');
