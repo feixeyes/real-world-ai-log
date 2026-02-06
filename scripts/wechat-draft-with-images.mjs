@@ -241,7 +241,7 @@ async function clickFirstVisibleButtonByText(page, regexes) {
 async function setCoverFromMaterial(page, outDir, coverFilename, coverIndex = 0) {
   // WeChat's cover entry varies:
   // - Sometimes a button: 选择封面/设置封面
-  // - Sometimes an area: "拖拽或选择封面"
+  // - Sometimes an area: "拖拽或选择封面" (user screenshot)
   // - Sometimes clicking the left thumbnail (标题卡片) opens cover selector
 
   // Try A: explicit cover buttons
@@ -316,6 +316,115 @@ async function setCoverFromMaterial(page, outDir, coverFilename, coverIndex = 0)
   return { ok: true };
 }
 
+async function setCoverFromArticleFirstImage(page, outDir) {
+  // Best-effort fallback: "从正文选择" → choose first image → confirm.
+  // This is a stability fallback when material-library cover is flaky.
+  let opened = await clickFirstVisibleButtonByText(page, [
+    /选择封面/, /设置封面/, /更换封面/, /^封面$/
+  ]);
+
+  if (!opened) {
+    const drop = page.getByText(/拖拽.*选择封面|选择封面/, { exact: false });
+    if (await drop.count()) {
+      try {
+        await drop.first().scrollIntoViewIfNeeded();
+        await drop.first().click({ timeout: 3000 });
+        opened = true;
+      } catch {}
+    }
+  }
+
+  if (!opened) {
+    await screenshot(page, outDir, 'cover-article-open-missing.png');
+    return { ok: false, reason: 'cover entry not found (article fallback)' };
+  }
+
+  await page.waitForTimeout(1200);
+
+  // Click menu item "从正文选择" (user-confirmed fallback)
+  try {
+    const entry = page.getByText(/从正文选择/, { exact: false }).first();
+    if (await entry.count()) {
+      await entry.click({ timeout: 5000 });
+    } else {
+      await screenshot(page, outDir, 'cover-article-entry-missing.png');
+      return { ok: false, reason: '从正文选择 not found' };
+    }
+  } catch (e) {
+    await screenshot(page, outDir, 'cover-article-entry-click-failed.png');
+    return { ok: false, reason: `click 从正文选择 failed: ${e?.message || e}` };
+  }
+
+  await page.waitForTimeout(2000);
+  await screenshot(page, outDir, 'cover-article-01-picker.png');
+
+  // Pick first visible selectable tile
+  const picked = await page.evaluate(() => {
+    function visible(el) {
+      const r = el.getBoundingClientRect();
+      const st = getComputedStyle(el);
+      return r.width > 40 && r.height > 40 && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
+    }
+
+    const selectors = [
+      '.weui-desktop-media__item',
+      '.weui-desktop-img-picker__item',
+      'li'
+    ];
+
+    const tiles = [];
+    for (const sel of selectors) {
+      for (const n of Array.from(document.querySelectorAll(sel))) {
+        if (!(n instanceof HTMLElement)) continue;
+        if (!visible(n)) continue;
+        const txt = (n.innerText || '').trim();
+        if (txt && txt.length > 300) continue;
+        tiles.push(n);
+      }
+      if (tiles.length) break;
+    }
+
+    const target = tiles[0];
+    if (!target) return false;
+    target.click();
+    return true;
+  });
+
+  if (!picked) {
+    await screenshot(page, outDir, 'cover-article-02-pick-missing.png');
+    return { ok: false, reason: 'no selectable tiles for article cover' };
+  }
+
+  await page.waitForTimeout(600);
+  await confirmImagePick(page, outDir, 'cover-article');
+  await screenshot(page, outDir, 'cover-article-03-after.png');
+  return { ok: true, via: 'article-first' };
+}
+
+async function fillAbstract(page, outDir, text) {
+  if (!text) return { ok: true, skipped: true };
+
+  const val = String(text).trim();
+  const clipped = val.length > 120 ? val.slice(0, 120) : val;
+
+  // Prefer textarea with placeholder containing "选填" / "摘要"
+  const cand = page.locator('textarea[placeholder*="选填"], textarea[placeholder*="摘要"], textarea').first();
+
+  try {
+    if (await cand.count()) {
+      await cand.first().scrollIntoViewIfNeeded();
+      await cand.first().click({ timeout: 3000 });
+      await cand.first().fill(clipped);
+      await page.waitForTimeout(300);
+      await screenshot(page, outDir, 'abstract-filled.png');
+      return { ok: true, clipped: clipped.length };
+    }
+  } catch {}
+
+  await screenshot(page, outDir, 'abstract-fill-failed.png');
+  return { ok: false, reason: 'abstract textarea not found' };
+}
+
 function parseArgs(argv) {
   // Backward compatible:
   //   node wechat-draft-with-images.mjs <markdownPath> <cookieFile> <outDir>
@@ -338,6 +447,12 @@ function parseArgs(argv) {
     // 0 = first tile, 1 = second tile...
     cover: 'cover.png',
     coverIndex: 0,
+    // If cover-from-library fails, try picking first image from the article.
+    coverFallback: 'article-first',
+
+    // abstract (WeChat 摘要, <=120 chars)
+    abstract: null,
+    abstractFile: null,
 
     illus1Index: 0,
     illus2Index: 1,
@@ -351,6 +466,9 @@ function parseArgs(argv) {
     else if (a === '--no-cover') args.noCover = true;
     else if (a === '--cover' && argv[i + 1]) args.cover = argv[++i];
     else if (a === '--cover-index' && argv[i + 1]) args.coverIndex = Number(argv[++i]);
+    else if (a === '--cover-fallback' && argv[i + 1]) args.coverFallback = argv[++i];
+    else if (a === '--abstract' && argv[i + 1]) args.abstract = argv[++i];
+    else if (a === '--abstract-file' && argv[i + 1]) args.abstractFile = argv[++i];
     else if (a === '--illus1' && argv[i + 1]) args.illus1 = argv[++i];
     else if (a === '--illus2' && argv[i + 1]) args.illus2 = argv[++i];
     else if (a === '--illus1-after' && argv[i + 1]) args.illus1After = argv[++i];
@@ -376,9 +494,10 @@ Usage (flags):
     --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \
     --illus2 illus-2.png --illus2-after "..." --illus2-index 1
 
-  # or enable cover (best-effort):
+  # or enable cover (best-effort) + optional abstract:
   node scripts/wechat-draft-with-images.mjs --md content/drafts/xxx.md --cookie /path/cookies.txt --out .tmp/wechat-draft \
-    --cover cover.png --cover-index 0 \
+    --cover cover.png --cover-index 0 --cover-fallback article-first \
+    --abstract "<=120字摘要" \
     --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \
     --illus2 illus-2.png --illus2-after "..." --illus2-index 1
 
@@ -477,9 +596,22 @@ Notes:
   await screenshot(page, outDir, '03-filled-text.png');
 
   // Set cover (best-effort)
-  const coverResult = args.noCover
+  let coverResult = args.noCover
     ? { ok: false, skipped: true }
     : await setCoverFromMaterial(page, outDir, args.cover, args.coverIndex);
+
+  // Fallback: from-article-first-image (user-approved)
+  if (!args.noCover && (!coverResult || coverResult.ok !== true) && args.coverFallback === 'article-first') {
+    const fallback = await setCoverFromArticleFirstImage(page, outDir);
+    coverResult = fallback.ok ? { ok: true, via: 'article-first' } : { ...coverResult, fallback };
+  }
+
+  // Fill abstract (WeChat 摘要)
+  let abstractText = args.abstract;
+  if (!abstractText && args.abstractFile && fs.existsSync(args.abstractFile)) {
+    abstractText = fs.readFileSync(args.abstractFile, 'utf8');
+  }
+  const abstractResult = await fillAbstract(page, outDir, abstractText);
 
   // Insert illustration 1
   {
@@ -526,7 +658,7 @@ Notes:
   await page.waitForTimeout(3000);
   await screenshot(page, outDir, '06-draft-list.png');
 
-  console.log(JSON.stringify({ outDir, token, editUrl, title, titleFilled, coverResult, saved }, null, 2));
+  console.log(JSON.stringify({ outDir, token, editUrl, title, titleFilled, coverResult, abstractResult, saved }, null, 2));
 
   await browser.close();
 }
