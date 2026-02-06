@@ -1,0 +1,22 @@
+{
+  "slug": "openclaw-agent-insights-room-01",
+  "title": "洞察室（01）OpenClaw：把个人助理做成“可编排系统”",
+  "wechatAbstract": "剖析 OpenClaw 的架构设计，将 Agent 视为包含通道、会话、工具与定时任务的 runtime。通过 Playwright 绕过昂贵 API，利用 Cron 实现从抓取到投递的自动化闭环。",
+  "oneLiner": "“洞察室”首期拆解 OpenClaw",
+  "bullets": [
+    "转换 Agent 认知为可编排 runt",
+    "利用 Playwright 与 Cron",
+    "落地分层记忆模式实现项目规则持久化"
+  ],
+  "keywords": [
+    "洞察室",
+    "OpenClaw",
+    "Agent架构",
+    "自动化流",
+    "Cron定时任务",
+    "可编排系统",
+    "杂活自动化"
+  ],
+  "generatedAt": "2026-02-06T16:30:08.659Z",
+  "model": "gemini-2.5-pro"
+}
