@@ -153,39 +153,50 @@ async function openLatestDraft(page, token, outDir, perPage) {
   return { ok: false, reason: 'latest draft not opened' };
 }
 
-async function openFirstCardDraft(page, token, outDir, perPage) {
-  const listUrl = `https://mp.weixin.qq.com/cgi-bin/appmsg?begin=0&count=${perPage}&type=77&action=list_card&lang=zh_CN&token=${token}`;
-  await page.goto(listUrl, { waitUntil: 'domcontentloaded' });
+async function openFirstCardDraft(page, token, outDir) {
+  // Use Home -> Recent Drafts -> hover -> Edit button
+  await page.goto('https://mp.weixin.qq.com/cgi-bin/home?t=home/index&lang=zh_CN', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(3000);
-  await screenshot(page, outDir, 'drafts-first.png');
+  await screenshot(page, outDir, 'home.png');
 
-  const clicked = await page.evaluate(() => {
-    const selectors = [
-      '.weui-desktop-card__bd .weui-desktop-card__title',
-      '.weui-desktop-card__bd a',
-      '.appmsg_title',
-      'a'
-    ];
+  const opened = await page.evaluate(() => {
     function visible(el) {
       const r = el.getBoundingClientRect();
       const st = getComputedStyle(el);
       return r.width > 30 && r.height > 10 && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
     }
-    for (const sel of selectors) {
-      const nodes = Array.from(document.querySelectorAll(sel));
-      for (const n of nodes) {
-        if (!(n instanceof HTMLElement)) continue;
-        if (!visible(n)) continue;
-        if ((n.innerText || '').trim().length < 2) continue;
-        n.click();
-        return true;
-      }
+
+    const cards = Array.from(document.querySelectorAll('.weui-desktop-card, .card, .appmsg_list .appmsg_item')).filter((n) => {
+      if (!(n instanceof HTMLElement)) return false;
+      return visible(n);
+    });
+
+    const card = cards[0];
+    if (!card) return false;
+    card.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    card.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+
+    const editBtn = card.querySelector('[data-role="edit"], .weui-desktop-card__action .icon_edit, .weui-desktop-card__action a, .icon_edit, .js_edit');
+    if (editBtn && editBtn instanceof HTMLElement) {
+      editBtn.click();
+      return true;
     }
+
+    // fallback: find any visible edit icon button inside card
+    const btns = Array.from(card.querySelectorAll('a, button, i')).filter((n) => n instanceof HTMLElement && visible(n));
+    for (const b of btns) {
+      const txt = (b.innerText || '').trim();
+      if (/编辑|修改/.test(txt)) { b.click(); return true; }
+      const cls = b.className || '';
+      if (/edit/i.test(cls)) { b.click(); return true; }
+    }
+
     return false;
   });
 
-  if (!clicked) {
-    return { ok: false, reason: 'no clickable draft card found' };
+  if (!opened) {
+    await screenshot(page, outDir, 'drafts-first-missing.png');
+    return { ok: false, reason: 'edit button not clicked on recent drafts card' };
   }
 
   try {
@@ -194,10 +205,10 @@ async function openFirstCardDraft(page, token, outDir, perPage) {
   await page.waitForTimeout(1500);
   await screenshot(page, outDir, 'draft-opened.png');
   if (/appmsg.*edit/i.test(page.url())) {
-    return { ok: true, url: page.url(), method: 'first-card' };
+    return { ok: true, url: page.url(), method: 'recent-drafts-edit' };
   }
 
-  return { ok: false, reason: 'first card clicked but editor not opened' };
+  return { ok: false, reason: 'edit clicked but editor not opened' };
 }
 
 async function placeCursorAtStart(page) {
