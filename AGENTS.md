@@ -48,6 +48,7 @@ Agents are collaborators, not autonomous authors.
 
 6. **Assume the human is the final decision-maker**
    - Outline direction / topic choice requires confirmation (always).
+   - After outline confirmation, proceed without step-by-step check-ins unless the user explicitly asks for it.
    - For other low-stakes questions (filenames, minor wording, number of images, etc.):
      - Ask once.
      - If there is no reply within **10 minutes**, proceed with a sensible default and clearly log what was assumed.
