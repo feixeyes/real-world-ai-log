@@ -55,7 +55,16 @@ async function screenshot(page, outDir, name) {
 async function extractToken(page) {
   const u = page.url();
   const m = u.match(/[?&]token=(\d+)/);
-  return m ? m[1] : null;
+  if (m) return m[1];
+
+  // Some WeChat pages no longer keep token in the URL, but embed it into links/scripts.
+  try {
+    const html = await page.content();
+    const m2 = html.match(/[?&]token=(\d{3,})/);
+    if (m2) return m2[1];
+  } catch {}
+
+  return null;
 }
 
 async function ensureToken(page, outDir) {
@@ -274,6 +283,69 @@ async function clickFirstVisibleButtonByText(page, regexes) {
   return false;
 }
 
+async function clickFirstVisibleByText(page, regex, opts = {}) {
+  const { timeoutMs = 8000 } = opts;
+
+  // Important: WeChat often keeps *multiple* copies of the same menu entries in DOM.
+  // We must pick the one that is actually visible (has a bbox).
+  const loc = page.getByText(regex, { exact: false });
+  const n = await loc.count();
+  if (!n) return false;
+
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    for (let i = 0; i < n; i++) {
+      const el = loc.nth(i);
+      const box = await el.boundingBox().catch(() => null);
+      if (!box || box.width < 5 || box.height < 5) continue;
+      try {
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+        return true;
+      } catch {}
+      try {
+        await el.click({ timeout: 1000, force: true });
+        return true;
+      } catch {}
+    }
+    await page.waitForTimeout(150);
+  }
+
+  return false;
+}
+
+async function jsClickVisibleText(page, regexSource) {
+  // regexSource: string (e.g. "从正文选择")
+  return await page.evaluate((regexSource) => {
+    const re = new RegExp(regexSource);
+    function visible(el) {
+      if (!(el instanceof HTMLElement)) return false;
+      const r = el.getBoundingClientRect();
+      const st = getComputedStyle(el);
+      if (r.width < 5 || r.height < 5) return false;
+      if (st.visibility === 'hidden' || st.display === 'none' || st.opacity === '0') return false;
+      // ensure it's not fully covered by a transparent overlay by checking center point
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const topEl = document.elementFromPoint(cx, cy);
+      return !!topEl && (topEl === el || el.contains(topEl) || topEl.contains(el));
+    }
+
+    const candidates = Array.from(document.querySelectorAll('body *'))
+      .filter((el) => el instanceof HTMLElement)
+      .filter((el) => {
+        const t = (el.innerText || '').trim();
+        return t && t.length <= 30 && re.test(t);
+      });
+
+    for (const el of candidates) {
+      if (!visible(el)) continue;
+      el.click();
+      return true;
+    }
+    return false;
+  }, regexSource);
+}
+
 async function setCoverFromMaterial(page, outDir, coverFilename, coverIndex = 0) {
   // WeChat's cover entry varies:
   // - Sometimes a button: 选择封面/设置封面
@@ -379,19 +451,17 @@ async function setCoverFromArticleFirstImage(page, outDir) {
 
   // Click menu item "从正文选择" (user-confirmed fallback)
   try {
-    const entry = page.getByText(/从正文选择/, { exact: false }).first();
-    if (!(await entry.count())) {
-      await screenshot(page, outDir, 'cover-article-entry-missing.png');
-      return { ok: false, reason: '从正文选择 not found' };
+    // WeChat has multiple duplicate menu DOMs; pick the *visible* one.
+    let clicked = await clickFirstVisibleByText(page, /从正文选择/, { timeoutMs: 8000 });
+
+    // If still not clicked, use a JS visibility scan as last resort.
+    if (!clicked) {
+      clicked = await jsClickVisibleText(page, '从正文选择');
     }
 
-    // Sometimes the locator exists but is inside a hidden popover. Click by bbox when visible.
-    await entry.waitFor({ state: 'visible', timeout: 8000 });
-    const box = await entry.boundingBox().catch(() => null);
-    if (box && box.width > 5 && box.height > 5) {
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    } else {
-      await entry.click({ timeout: 8000 });
+    if (!clicked) {
+      await screenshot(page, outDir, 'cover-article-entry-click-failed.png');
+      return { ok: false, reason: 'click 从正文选择 failed: no visible entry clickable' };
     }
   } catch (e) {
     await screenshot(page, outDir, 'cover-article-entry-click-failed.png');
@@ -450,19 +520,87 @@ async function fillAbstract(page, outDir, text) {
   const val = String(text).trim();
   const clipped = val.length > 120 ? val.slice(0, 120) : val;
 
-  // Prefer textarea with placeholder containing "选填" / "摘要"
-  const cand = page.locator('textarea[placeholder*="选填"], textarea[placeholder*="摘要"], textarea').first();
+  // Make sure we are not blocked by any open cover/image dialogs.
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press('Escape').catch(() => undefined);
+    await page.waitForTimeout(200);
+  }
 
-  try {
-    if (await cand.count()) {
-      await cand.first().scrollIntoViewIfNeeded();
-      await cand.first().click({ timeout: 3000 });
-      await cand.first().fill(clipped);
+  async function firstVisible(locator) {
+    const n = await locator.count();
+    for (let i = 0; i < n; i++) {
+      const el = locator.nth(i);
+      const box = await el.boundingBox().catch(() => null);
+      if (!box || box.width < 5 || box.height < 5) continue;
+      return el;
+    }
+    return null;
+  }
+
+  // Candidate strategies (WeChat UI shifts a lot):
+  // 1) explicit maxlength=120
+  // 2) textarea within a section that shows "0/120" counter
+  // 3) placeholder includes "摘要" or "选填"
+  // 4) any visible textarea as last resort
+  const candidates = [
+    page.locator('textarea[maxlength="120"], textarea[data-maxlength="120"]'),
+    page.locator('div:has-text("0/120") textarea, div:has-text("120") textarea'),
+    page.locator('textarea[placeholder*="摘要"], textarea[placeholder*="选填"]'),
+    page.locator('textarea'),
+  ];
+
+  for (const loc of candidates) {
+    const el = await firstVisible(loc);
+    if (!el) continue;
+    try {
+      await el.scrollIntoViewIfNeeded();
+      await el.click({ timeout: 3000 });
+      await el.fill(clipped);
       await page.waitForTimeout(300);
       await screenshot(page, outDir, 'abstract-filled.png');
       return { ok: true, clipped: clipped.length };
+    } catch {}
+  }
+
+  // Last-ditch: scan DOM and click/fill the visible textarea nearest to a "0/120" counter.
+  const ok = await page.evaluate((clipped) => {
+    function visible(el) {
+      const r = el.getBoundingClientRect();
+      const st = getComputedStyle(el);
+      return r.width > 10 && r.height > 10 && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
     }
-  } catch {}
+    const counters = Array.from(document.querySelectorAll('*')).filter(n => {
+      if (!(n instanceof HTMLElement)) return false;
+      const t = (n.innerText || '').trim();
+      return t === '0/120' || /\b\d{1,3}\/120\b/.test(t);
+    });
+
+    let best = null;
+    for (const c of counters) {
+      const root = c.closest('section, div') || c.parentElement;
+      if (!root) continue;
+      const ta = root.querySelector('textarea');
+      if (ta && ta instanceof HTMLTextAreaElement && visible(ta)) {
+        best = ta;
+        break;
+      }
+    }
+    if (!best) {
+      const all = Array.from(document.querySelectorAll('textarea')).filter(t => t instanceof HTMLTextAreaElement && visible(t));
+      best = all[0] || null;
+    }
+    if (!best) return false;
+    best.focus();
+    best.value = clipped;
+    best.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  }, clipped).catch(() => false);
+
+  if (ok) {
+    await page.waitForTimeout(300);
+    await screenshot(page, outDir, 'abstract-filled.png');
+    return { ok: true, clipped: clipped.length, via: 'dom-scan' };
+  }
 
   await screenshot(page, outDir, 'abstract-fill-failed.png');
   return { ok: false, reason: 'abstract textarea not found' };
@@ -567,17 +705,43 @@ Notes:
 
   const cookies = parseNetscapeCookies(fs.readFileSync(cookieFile, 'utf8'));
 
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    viewport: { width: 1440, height: 900 },
-    userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-  });
-  await context.addCookies(cookies);
+  const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-  const page = await context.newPage();
-  page.setDefaultTimeout(60000);
+  // We try cookie-based login first (fast + hermetic). If it fails (cookie expired),
+  // fall back to the local Chromium profile (often already logged-in via manual scan).
+  let browser;
+  let context;
+  let page;
+  let token;
 
-  const token = await ensureToken(page, outDir);
+  async function tryWithCookies() {
+    browser = await chromium.launch({ headless: true });
+    context = await browser.newContext({ viewport: { width: 1440, height: 900 }, userAgent: UA });
+    await context.addCookies(cookies);
+    page = await context.newPage();
+    page.setDefaultTimeout(60000);
+    token = await ensureToken(page, outDir);
+  }
+
+  async function tryWithPersistentProfile() {
+    const userDataDir = process.env.WECHAT_USER_DATA_DIR || '/home/fei/snap/chromium/common/chromium';
+    context = await chromium.launchPersistentContext(userDataDir, {
+      headless: true,
+      viewport: { width: 1440, height: 900 },
+      userAgent: UA
+    });
+    page = context.pages()[0] || await context.newPage();
+    page.setDefaultTimeout(60000);
+    token = await ensureToken(page, outDir);
+  }
+
+  try {
+    await tryWithCookies();
+  } catch (e) {
+    try { await browser?.close(); } catch {}
+    await screenshot(page || (await (async()=>{ try { return (context && (context.pages()[0]||null)) } catch { return null } })()), outDir, 'token-cookie-failed.png').catch(() => undefined);
+    await tryWithPersistentProfile();
+  }
 
   const editUrl = `https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit_v2&action=edit&isNew=1&type=77&lang=zh_CN&token=${token}`;
   await page.goto(editUrl, { waitUntil: 'domcontentloaded' });
