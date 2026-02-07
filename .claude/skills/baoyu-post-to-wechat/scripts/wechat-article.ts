@@ -206,11 +206,14 @@ function parseHtmlMeta(htmlPath: string): { title: string; author: string; summa
   if (descMatch) summary = descMatch[1]!;
 
   if (!summary) {
-    const firstPMatch = content.match(/<p[^>]*>([^<]+)<\/p>/i);
-    if (firstPMatch) {
-      const text = firstPMatch[1]!.replace(/<[^>]+>/g, '').trim();
+    const pMatches = Array.from(content.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/ig));
+    for (const m of pMatches) {
+      const text = m[1]!.replace(/<[^>]+>/g, '').trim();
+      if (!text) continue;
+      if (text.includes('[[IMAGE_PLACEHOLDER_')) continue;
       if (text.length > 20) {
         summary = text.length > 120 ? text.slice(0, 117) + '...' : text;
+        break;
       }
     }
   }
@@ -451,6 +454,7 @@ Options:
   --image <path>     Content image, can repeat (only with --content)
   --submit           Save as draft
   --profile <dir>    Chrome profile directory
+  --cookie <file>    Netscape cookies.txt for login
 
 Examples:
   npx -y bun wechat-article.ts --markdown article.md
@@ -480,6 +484,7 @@ async function main(): Promise<void> {
   let summary: string | undefined;
   let submit = false;
   let profileDir: string | undefined;
+  let cookieFile: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -493,12 +498,13 @@ async function main(): Promise<void> {
     else if (arg === '--image' && args[i + 1]) images.push(args[++i]!);
     else if (arg === '--submit') submit = true;
     else if (arg === '--profile' && args[i + 1]) profileDir = args[++i];
+    else if (arg === '--cookie' && args[i + 1]) cookieFile = args[++i];
   }
 
   if (!markdownFile && !htmlFile && !title) { console.error('Error: --title is required (or use --markdown/--html)'); process.exit(1); }
   if (!markdownFile && !htmlFile && !content) { console.error('Error: --content, --html, or --markdown is required'); process.exit(1); }
 
-  await postArticle({ title: title || '', content, htmlFile, markdownFile, theme, author, summary, images, submit, profileDir });
+  await postArticle({ title: title || '', content, htmlFile, markdownFile, theme, author, summary, images, submit, profileDir, cookieFile });
 }
 
 await main().catch((err) => {
