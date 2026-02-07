@@ -217,13 +217,27 @@ async function openFirstCardDraft(page, token, outDir) {
 
 async function placeCursorAtStart(page) {
   return await page.evaluate(() => {
-    const editor = document.querySelector('.ProseMirror[contenteditable="true"]')
-      || document.querySelector('[contenteditable="true"]');
-    if (!editor) return false;
-    const range = document.createRange();
+    function getEditorDoc() {
+      const direct = document.querySelector('.ProseMirror[contenteditable="true"], [contenteditable="true"]');
+      if (direct) return { doc: document, editor: direct };
+      const frames = Array.from(document.querySelectorAll('iframe'));
+      for (const f of frames) {
+        try {
+          const doc = f.contentDocument;
+          if (!doc) continue;
+          const ed = doc.querySelector('.ProseMirror[contenteditable="true"], [contenteditable="true"]');
+          if (ed) return { doc, editor: ed };
+        } catch {}
+      }
+      return null;
+    }
+    const found = getEditorDoc();
+    if (!found) return false;
+    const { doc, editor } = found;
+    const range = doc.createRange();
     range.selectNodeContents(editor);
     range.collapse(true);
-    const sel = window.getSelection();
+    const sel = doc.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
     // @ts-ignore
@@ -242,7 +256,7 @@ async function placeCursorAfterText(page, needle) {
         .replace(/[’]/g, "'");
     }
     function findTextNode(root) {
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       let node;
       const nNeedle = norm(needle);
       while ((node = walker.nextNode())) {
@@ -255,15 +269,29 @@ async function placeCursorAfterText(page, needle) {
       }
       return null;
     }
-    const editor = document.querySelector('.ProseMirror[contenteditable="true"]')
-      || document.querySelector('[contenteditable="true"]');
-    if (!editor) return false;
+    function getEditorDoc() {
+      const direct = document.querySelector('.ProseMirror[contenteditable="true"], [contenteditable="true"]');
+      if (direct) return { doc: document, editor: direct };
+      const frames = Array.from(document.querySelectorAll('iframe'));
+      for (const f of frames) {
+        try {
+          const doc = f.contentDocument;
+          if (!doc) continue;
+          const ed = doc.querySelector('.ProseMirror[contenteditable="true"], [contenteditable="true"]');
+          if (ed) return { doc, editor: ed };
+        } catch {}
+      }
+      return null;
+    }
+    const foundDoc = getEditorDoc();
+    if (!foundDoc) return false;
+    const { doc, editor } = foundDoc;
     const found = findTextNode(editor);
     if (!found) return false;
-    const range = document.createRange();
+    const range = doc.createRange();
     range.setStart(found.node, Math.min(found.idx, (found.node.nodeValue || '').length));
     range.collapse(true);
-    const sel = window.getSelection();
+    const sel = doc.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
     // @ts-ignore
