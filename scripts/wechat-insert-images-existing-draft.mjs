@@ -436,7 +436,7 @@ Or use keyword:
   const page = await context.newPage();
   page.setDefaultTimeout(60000);
 
-  const token = await ensureToken(page, outDir);
+  let token = null;
   let openResult;
   if (args.editUrl) {
     await page.goto(args.editUrl, { waitUntil: 'domcontentloaded' });
@@ -446,6 +446,7 @@ Or use keyword:
       ? { ok: true, url: page.url(), method: 'edit-url' }
       : { ok: false, reason: `edit url not opened: ${page.url()}` };
   } else {
+    token = await ensureToken(page, outDir);
     openResult = args.forceFirst
       ? await openFirstCardDraft(page, token, outDir, args.perPage)
       : args.latest
@@ -454,7 +455,8 @@ Or use keyword:
   }
   if (!openResult.ok) {
     console.log(JSON.stringify({ outDir, token, openResult }, null, 2));
-    await browser.close();
+    if (browser) await browser.close();
+    else if (context) await context.close();
     process.exit(1);
   }
 
