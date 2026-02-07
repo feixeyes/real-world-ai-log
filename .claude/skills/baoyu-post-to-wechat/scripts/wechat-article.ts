@@ -24,6 +24,51 @@ interface ArticleOptions {
   contentImages?: ImageInfo[];
   submit?: boolean;
   profileDir?: string;
+  cookieFile?: string;
+}
+
+function parseNetscapeCookies(txt: string) {
+  const lines = txt.split(/\r?\n/);
+  const cookies: Array<{ name: string; value: string; domain: string; path: string; secure: boolean; httpOnly: boolean; expires?: number }> = [];
+  for (const line of lines) {
+    if (!line || line.startsWith('#')) continue;
+    const parts = line.split('\t');
+    if (parts.length < 7) continue;
+    let [domainRaw, , pathVal, secureRaw, expiresRaw, name, value] = parts;
+    const domain = (domainRaw || '').trim();
+    if (!domain || !name) continue;
+    const secure = (secureRaw || '').trim().toUpperCase() === 'TRUE';
+    const expires = Number(expiresRaw);
+    const c: any = {
+      name,
+      value: value ?? '',
+      domain,
+      path: (pathVal && pathVal.startsWith('/')) ? pathVal : '/',
+      secure,
+      httpOnly: false,
+    };
+    if (Number.isFinite(expires) && expires > 0) c.expires = expires;
+    cookies.push(c);
+  }
+  return cookies;
+}
+
+async function applyCookies(cdp: CdpConnection, cookies: ReturnType<typeof parseNetscapeCookies>) {
+  await cdp.send('Network.enable');
+  for (const c of cookies) {
+    const host = c.domain.replace(/^\./, '');
+    const url = `https://${host}${c.path || '/'}`;
+    await cdp.send('Network.setCookie', {
+      name: c.name,
+      value: c.value,
+      domain: c.domain,
+      path: c.path,
+      secure: c.secure,
+      httpOnly: c.httpOnly,
+      expires: c.expires,
+      url,
+    });
+  }
 }
 
 async function waitForLogin(session: ChromeSession, timeoutMs = 120_000): Promise<boolean> {
@@ -214,7 +259,7 @@ async function pressDeleteKey(session: ChromeSession): Promise<void> {
 }
 
 export async function postArticle(options: ArticleOptions): Promise<void> {
-  const { title, content, htmlFile, markdownFile, theme, author, summary, images = [], submit = false, profileDir } = options;
+  const { title, content, htmlFile, markdownFile, theme, author, summary, images = [], submit = false, profileDir, cookieFile } = options;
   let { contentImages = [] } = options;
   let effectiveTitle = title || '';
   let effectiveAuthor = author || '';
@@ -255,6 +300,19 @@ export async function postArticle(options: ArticleOptions): Promise<void> {
     await sleep(3000);
 
     let session = await getPageSession(cdp, 'mp.weixin.qq.com');
+
+    if (cookieFile && fs.existsSync(cookieFile)) {
+      try {
+        const cookies = parseNetscapeCookies(fs.readFileSync(cookieFile, 'utf-8'));
+        console.log(`[wechat] Applying cookies from ${cookieFile}...`);
+        await applyCookies(cdp, cookies);
+        await sleep(1000);
+        await cdp.send('Page.navigate', { url: 'https://mp.weixin.qq.com/cgi-bin/home?t=home/index&lang=zh_CN' }, { sessionId: session.sessionId });
+        await sleep(3000);
+      } catch (e) {
+        console.error('[wechat] Failed to apply cookies, fallback to QR login.');
+      }
+    }
 
     const url = await evaluate<string>(session, 'window.location.href');
     if (!url.includes('/cgi-bin/home')) {

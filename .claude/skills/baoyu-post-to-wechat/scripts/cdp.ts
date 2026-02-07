@@ -171,12 +171,20 @@ export interface ChromeSession {
   targetId: string;
 }
 
-export async function launchChrome(url: string, profileDir?: string): Promise<{ cdp: CdpConnection; chrome: ReturnType<typeof spawn> }> {
-  const chromePath = findChromeExecutable();
-  if (!chromePath) throw new Error('Chrome not found. Set WECHAT_BROWSER_CHROME_PATH env var.');
-
+export async function launchChrome(url: string, profileDir?: string): Promise<{ cdp: CdpConnection; chrome: ReturnType<typeof spawn> | null }> {
   const profile = profileDir ?? getDefaultProfileDir();
   await mkdir(profile, { recursive: true });
+
+  const envPort = process.env.WECHAT_CDP_PORT ? Number(process.env.WECHAT_CDP_PORT) : null;
+  if (envPort && Number.isFinite(envPort)) {
+    console.log(`[cdp] Connecting to existing Chrome debug port: ${envPort}`);
+    const wsUrl = await waitForChromeDebugPort(envPort, 60_000);
+    const cdp = await CdpConnection.connect(wsUrl, 30_000);
+    return { cdp, chrome: null };
+  }
+
+  const chromePath = findChromeExecutable();
+  if (!chromePath) throw new Error('Chrome not found. Set WECHAT_BROWSER_CHROME_PATH env var.');
 
   const port = await getFreePort();
   console.log(`[cdp] Launching Chrome (profile: ${profile})`);
@@ -191,7 +199,7 @@ export async function launchChrome(url: string, profileDir?: string): Promise<{ 
     url,
   ], { stdio: 'ignore' });
 
-  const wsUrl = await waitForChromeDebugPort(port, 30_000);
+  const wsUrl = await waitForChromeDebugPort(port, 60_000);
   const cdp = await CdpConnection.connect(wsUrl, 30_000);
 
   return { cdp, chrome };
