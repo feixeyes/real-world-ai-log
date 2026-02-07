@@ -35,6 +35,7 @@ function parseArgs(argv) {
     keyword: null,
     latest: false,
     forceFirst: false,
+    editUrl: null,
     cookieFile: null,
     outDir: null,
     cover: 'cover.png',
@@ -55,6 +56,7 @@ function parseArgs(argv) {
     if ((a === '--keyword' || a === '--title') && argv[i + 1]) args.keyword = argv[++i];
     else if (a === '--latest') args.latest = true;
     else if (a === '--force-first') args.forceFirst = true;
+    else if (a === '--edit-url' && argv[i + 1]) args.editUrl = argv[++i];
     else if (a === '--cookie' && argv[i + 1]) args.cookieFile = argv[++i];
     else if (a === '--out' && argv[i + 1]) args.outDir = argv[++i];
     else if (a === '--cover' && argv[i + 1]) args.cover = argv[++i];
@@ -363,7 +365,7 @@ async function selectImageByFilename(page, filename, outDir, tag, fallbackIndex 
 
 async function main() {
   const args = parseArgs(process.argv);
-  if (args.help || (!args.keyword && !args.latest && !args.forceFirst)) {
+  if (args.help || (!args.keyword && !args.latest && !args.forceFirst && !args.editUrl)) {
     console.log(`Insert images into an EXISTING WeChat draft (草稿箱) via Playwright + cookie injection.
 
 Usage:
@@ -378,6 +380,15 @@ Usage:
 Or force-first:
   node scripts/wechat-insert-images-existing-draft.mjs \\
     --force-first \\
+    --cookie /path/to/wechat-cookies.txt \\
+    --out .tmp/wechat-insert-images \\
+    --cover cover.png --cover-index 0 \\
+    --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \\
+    --illus2 illus-2.png --illus2-after "..." --illus2-index 1
+
+Or direct edit URL:
+  node scripts/wechat-insert-images-existing-draft.mjs \\
+    --edit-url "https://mp.weixin.qq.com/cgi-bin/appmsg?..." \\
     --cookie /path/to/wechat-cookies.txt \\
     --out .tmp/wechat-insert-images \\
     --cover cover.png --cover-index 0 \\
@@ -413,11 +424,21 @@ Or use keyword:
   page.setDefaultTimeout(60000);
 
   const token = await ensureToken(page, outDir);
-  const openResult = args.forceFirst
-    ? await openFirstCardDraft(page, token, outDir, args.perPage)
-    : args.latest
-      ? await openLatestDraft(page, token, outDir, args.perPage)
-      : await openDraftByKeyword(page, token, args.keyword, outDir, args.perPage, args.maxPages);
+  let openResult;
+  if (args.editUrl) {
+    await page.goto(args.editUrl, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2000);
+    await screenshot(page, outDir, 'draft-opened.png');
+    openResult = /appmsg.*edit/i.test(page.url())
+      ? { ok: true, url: page.url(), method: 'edit-url' }
+      : { ok: false, reason: `edit url not opened: ${page.url()}` };
+  } else {
+    openResult = args.forceFirst
+      ? await openFirstCardDraft(page, token, outDir, args.perPage)
+      : args.latest
+        ? await openLatestDraft(page, token, outDir, args.perPage)
+        : await openDraftByKeyword(page, token, args.keyword, outDir, args.perPage, args.maxPages);
+  }
   if (!openResult.ok) {
     console.log(JSON.stringify({ outDir, token, openResult }, null, 2));
     await browser.close();
