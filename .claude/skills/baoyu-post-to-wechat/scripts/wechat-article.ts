@@ -276,8 +276,9 @@ export async function postArticle(options: ArticleOptions): Promise<void> {
     const parsed = await parseMarkdownWithPlaceholders(markdownFile, theme);
     effectiveTitle = effectiveTitle || parsed.title;
     effectiveAuthor = effectiveAuthor || parsed.author;
-    effectiveSummary = effectiveSummary || parsed.summary;
-    effectiveHtmlFile = parsed.htmlPath;
+    if (!noSummary) effectiveSummary = effectiveSummary || parsed.summary;
+    // If htmlFile is provided, prefer it (e.g., fixed path), but keep parsed images
+    effectiveHtmlFile = htmlFile && fs.existsSync(htmlFile) ? htmlFile : parsed.htmlPath;
     contentImages = parsed.contentImages;
     console.log(`[wechat] Title: ${effectiveTitle || '(empty)'}`);
     console.log(`[wechat] Author: ${effectiveAuthor || '(empty)'}`);
