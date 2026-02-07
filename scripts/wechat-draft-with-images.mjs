@@ -623,7 +623,7 @@ function parseArgs(argv) {
     illus2After: '## 5. 更新机制',
 
     // cover
-    noCover: false,
+    noCover: true,
     // Fallback selection by index under "最近使用" when filename is not visible.
     // 0 = first tile, 1 = second tile...
     cover: 'cover.png',
@@ -631,10 +631,13 @@ function parseArgs(argv) {
     // Cover strategy is simplified: insert cover image into body first, then pick first image as cover.
     // Kept for compatibility; currently only "article-first" is used.
     coverFallback: 'article-first',
+    coverEnable: false,
 
-    // abstract (WeChat 摘要, <=120 chars)
+    // abstract
     abstract: null,
     abstractFile: null,
+    abstractToBody: true,
+    fillAbstract: false,
 
     illus1Index: 0,
     illus2Index: 1,
@@ -646,11 +649,15 @@ function parseArgs(argv) {
     else if (a === '--cookie' && argv[i + 1]) args.cookieFile = argv[++i];
     else if (a === '--out' && argv[i + 1]) args.outDir = argv[++i];
     else if (a === '--no-cover') args.noCover = true;
+    else if (a === '--cover-enable') { args.noCover = false; args.coverEnable = true; }
     else if (a === '--cover' && argv[i + 1]) args.cover = argv[++i];
     else if (a === '--cover-index' && argv[i + 1]) args.coverIndex = Number(argv[++i]);
     else if (a === '--cover-fallback' && argv[i + 1]) args.coverFallback = argv[++i];
     else if (a === '--abstract' && argv[i + 1]) args.abstract = argv[++i];
     else if (a === '--abstract-file' && argv[i + 1]) args.abstractFile = argv[++i];
+    else if (a === '--abstract-to-body') args.abstractToBody = true;
+    else if (a === '--no-abstract-to-body') args.abstractToBody = false;
+    else if (a === '--fill-abstract') args.fillAbstract = true;
     else if (a === '--illus1' && argv[i + 1]) args.illus1 = argv[++i];
     else if (a === '--illus2' && argv[i + 1]) args.illus2 = argv[++i];
     else if (a === '--illus1-after' && argv[i + 1]) args.illus1After = argv[++i];
@@ -672,22 +679,24 @@ Usage (legacy positional):
 
 Usage (flags):
   node scripts/wechat-draft-with-images.mjs --md content/drafts/xxx.md --cookie /path/cookies.txt --out .tmp/wechat-draft \
-    --no-cover \
     --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \
     --illus2 illus-2.png --illus2-after "..." --illus2-index 1
 
-  # enable cover (recommended) + optional abstract:
-  # Cover strategy:
-  # - insert cover image as the FIRST image in the article body
-  # - set cover by "从正文选择" the FIRST image
+  # optional: insert abstract text at top of article body
   node scripts/wechat-draft-with-images.mjs --md content/drafts/xxx.md --cookie /path/cookies.txt --out .tmp/wechat-draft \
-    --cover cover.png --cover-index 0 \
     --abstract "<=120字摘要" \
     --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \
     --illus2 illus-2.png --illus2-after "..." --illus2-index 1
 
+  # optional: enable cover selection (default is manual cover)
+  node scripts/wechat-draft-with-images.mjs --md content/drafts/xxx.md --cookie /path/cookies.txt --out .tmp/wechat-draft \
+    --cover-enable --cover cover.png --cover-index 0 \
+    --fill-abstract --abstract "<=120字摘要" \
+    --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \
+    --illus2 illus-2.png --illus2-after "..." --illus2-index 1
+
 Notes:
-- Images are selected from the picker dialog; prefer using Recently Used uploads.
+- Default behavior: skip cover selection; abstract (if provided) is inserted at the top of the body.
 - Screenshots are written to --out for audit.
 `);
     return;
@@ -701,7 +710,16 @@ Notes:
   const md = fs.readFileSync(markdownPath, 'utf8');
   const titleMatch = md.match(/^#\s+(.+)$/m);
   const title = titleMatch ? titleMatch[1].trim() : `Draft ${new Date().toISOString()}`;
-  const contentPlain = mdToPlain(md.replace(/^#\s+.+\n/, ''));
+  let contentPlain = mdToPlain(md.replace(/^#\s+.+\n/, ''));
+
+  let abstractText = args.abstract;
+  if (!abstractText && args.abstractFile && fs.existsSync(args.abstractFile)) {
+    abstractText = fs.readFileSync(args.abstractFile, 'utf8');
+  }
+  if (abstractText && args.abstractToBody) {
+    const clipped = String(abstractText).trim();
+    contentPlain = `${clipped}\n\n${contentPlain}`;
+  }
 
   const cookies = parseNetscapeCookies(fs.readFileSync(cookieFile, 'utf8'));
 
@@ -806,9 +824,8 @@ Notes:
   await page.waitForTimeout(1500);
   await screenshot(page, outDir, '03-filled-text.png');
 
-  // Cover strategy (simplified, user-approved):
-  // 1) Always insert cover image as the FIRST image in the article body.
-  // 2) Always pick the FIRST article image as the cover ("从正文选择").
+  // Cover strategy (optional):
+  // Default: skip cover selection (user sets manually). Enable with --cover-enable.
   let coverResult = args.noCover ? { ok: false, skipped: true } : { ok: false };
   if (!args.noCover) {
     const atStart = await placeCursorAtStart(page);
@@ -827,12 +844,11 @@ Notes:
     }
   }
 
-  // Fill abstract (WeChat 摘要)
-  let abstractText = args.abstract;
-  if (!abstractText && args.abstractFile && fs.existsSync(args.abstractFile)) {
-    abstractText = fs.readFileSync(args.abstractFile, 'utf8');
+  // Fill abstract (WeChat 摘要) only if requested
+  let abstractResult = { ok: false, skipped: true };
+  if (args.fillAbstract) {
+    abstractResult = await fillAbstract(page, outDir, abstractText);
   }
-  const abstractResult = await fillAbstract(page, outDir, abstractText);
 
   // Insert illustration 1
   {

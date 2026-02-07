@@ -57,6 +57,11 @@ Agents are collaborators, not autonomous authors.
    - Any generated file (drafts, images, summaries, etc.) must be sent to the user directly in addition to saving locally.
    - If multiple files are produced, send a compact bundle (or the key file + a list) and ask whether to send the rest.
 
+8. **WeChat draft workflow (current default)**
+   - Upload cover + illustrations to WeChat material library.
+   - Do NOT auto-set cover in draft; the user will set it manually.
+   - Do NOT fill the WeChat abstract field; if an abstract is available, insert it at the top of the article body.
+
 ---
 
 ## Repository Structure (High Level)
