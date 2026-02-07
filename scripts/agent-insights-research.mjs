@@ -12,6 +12,8 @@ function parseArgs(argv) {
     noNews: false,
     queriesFile: null,
     section: 'all', // all|docs|arch|prompt|ops|news
+    topLinks: false,
+    topLinksN: 10,
   };
 
   for (let i = 2; i < argv.length; i++) {
@@ -24,6 +26,8 @@ function parseArgs(argv) {
     else if (a === '--no-news') args.noNews = true;
     else if (a === '--queries' && argv[i + 1]) args.queriesFile = argv[++i];
     else if (a === '--section' && argv[i + 1]) args.section = argv[++i];
+    else if (a === '--top-links') args.topLinks = true;
+    else if (a === '--top-links-n' && argv[i + 1]) args.topLinksN = Number(argv[++i]);
     else if (a === '--help' || a === '-h') args.help = true;
   }
   return args;
@@ -47,6 +51,8 @@ Options:
   --no-news          Disable the news query batch
   --queries <file>   Custom queries file (one query per line; supports {topic})
   --section <name>   Run subset: all|docs|arch|prompt|ops|news
+  --top-links        Also generate top-links.md (curated list)
+  --top-links-n <n>  Max links in top-links.md (default: 10)
 
 Env:
   Requires TAVILY_API_KEY in environment (OpenClaw env.vars works too).
@@ -178,7 +184,7 @@ const payload = {
   topic,
   slug,
   generatedAt: new Date().toISOString(),
-  params: { n: args.n, deep: args.deep, days: args.days },
+  params: { n: args.n, deep: args.deep, days: args.days, section: args.section },
   runs,
 };
 
@@ -204,4 +210,41 @@ for (const r of runs) {
 
 fs.writeFileSync(path.join(outDir, 'tavily-digest.md'), md);
 
-console.log(JSON.stringify({ ok: true, outDir, files: ['tavily-results.json', 'tavily-digest.md'] }, null, 2));
+function scoreUrl(url) {
+  const u = String(url || '').toLowerCase();
+  let s = 0;
+  if (u.includes('docs.') || u.includes('/docs') || u.includes('documentation')) s += 3;
+  if (u.includes('github.com')) s += 2;
+  if (u.includes('openclaw.ai') || u.includes('tavily.com') || u.includes('anthropic.com') || u.includes('openai.com')) s += 1;
+  if (u.includes('blog')) s += 0.5;
+  return s;
+}
+
+if (args.topLinks) {
+  // Build a curated list: unique URLs with the query context as "why".
+  const seen = new Set();
+  const items = [];
+  for (const r of runs) {
+    for (const u of r.links) {
+      if (seen.has(u)) continue;
+      seen.add(u);
+      items.push({ url: u, why: `来自查询：${r.query}（${r.mode}）`, score: scoreUrl(u) });
+    }
+  }
+  items.sort((a, b) => (b.score - a.score));
+
+  const n = Number.isFinite(args.topLinksN) ? Math.max(1, Math.min(50, Math.floor(args.topLinksN))) : 10;
+  const top = items.slice(0, n);
+
+  let tmd = `# Top links: ${topic}\n\n`;
+  tmd += `- GeneratedAt: ${payload.generatedAt}\n`;
+  tmd += `- Picked: ${top.length}/${items.length}\n\n`;
+  for (const it of top) {
+    tmd += `- ${it.url}\n  - ${it.why}\n`;
+  }
+  fs.writeFileSync(path.join(outDir, 'top-links.md'), tmd);
+}
+
+const files = ['tavily-results.json', 'tavily-digest.md'];
+if (args.topLinks) files.push('top-links.md');
+console.log(JSON.stringify({ ok: true, outDir, files }, null, 2));
