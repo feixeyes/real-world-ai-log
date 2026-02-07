@@ -159,44 +159,19 @@ async function openFirstCardDraft(page, token, outDir) {
   await page.waitForTimeout(3000);
   await screenshot(page, outDir, 'home.png');
 
-  const opened = await page.evaluate(() => {
-    function visible(el) {
-      const r = el.getBoundingClientRect();
-      const st = getComputedStyle(el);
-      return r.width > 30 && r.height > 10 && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
+  const card = page.locator('.weui-desktop-card, .card, .appmsg_list .appmsg_item').first();
+  if (await card.count()) {
+    await card.hover().catch(() => undefined);
+    await page.waitForTimeout(500);
+
+    const editBtn = card.locator('text=编辑, .icon_edit, .js_edit, [data-role="edit"], .weui-desktop-card__action a').first();
+    if (await editBtn.count()) {
+      await editBtn.click().catch(() => undefined);
+    } else {
+      // Try any visible edit link on the page
+      const anyEdit = page.getByRole('link', { name: /编辑/ }).first();
+      if (await anyEdit.count()) await anyEdit.click().catch(() => undefined);
     }
-
-    const cards = Array.from(document.querySelectorAll('.weui-desktop-card, .card, .appmsg_list .appmsg_item')).filter((n) => {
-      if (!(n instanceof HTMLElement)) return false;
-      return visible(n);
-    });
-
-    const card = cards[0];
-    if (!card) return false;
-    card.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-    card.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-
-    const editBtn = card.querySelector('[data-role="edit"], .weui-desktop-card__action .icon_edit, .weui-desktop-card__action a, .icon_edit, .js_edit');
-    if (editBtn && editBtn instanceof HTMLElement) {
-      editBtn.click();
-      return true;
-    }
-
-    // fallback: find any visible edit icon button inside card
-    const btns = Array.from(card.querySelectorAll('a, button, i')).filter((n) => n instanceof HTMLElement && visible(n));
-    for (const b of btns) {
-      const txt = (b.innerText || '').trim();
-      if (/编辑|修改/.test(txt)) { b.click(); return true; }
-      const cls = b.className || '';
-      if (/edit/i.test(cls)) { b.click(); return true; }
-    }
-
-    return false;
-  });
-
-  if (!opened) {
-    await screenshot(page, outDir, 'drafts-first-missing.png');
-    return { ok: false, reason: 'edit button not clicked on recent drafts card' };
   }
 
   try {
@@ -206,6 +181,29 @@ async function openFirstCardDraft(page, token, outDir) {
   await screenshot(page, outDir, 'draft-opened.png');
   if (/appmsg.*edit/i.test(page.url())) {
     return { ok: true, url: page.url(), method: 'recent-drafts-edit' };
+  }
+
+  // Fallback: drafts list page, click first edit button
+  const listUrl = `https://mp.weixin.qq.com/cgi-bin/appmsg?begin=0&count=10&type=77&action=list_card&lang=zh_CN&token=${token}`;
+  await page.goto(listUrl, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(3000);
+  await screenshot(page, outDir, 'drafts-list.png');
+
+  const rowEdit = page.getByRole('button', { name: /编辑|修改/ }).first();
+  if (await rowEdit.count()) {
+    await rowEdit.click().catch(() => undefined);
+  } else {
+    const rowLink = page.getByRole('link', { name: /编辑|修改/ }).first();
+    if (await rowLink.count()) await rowLink.click().catch(() => undefined);
+  }
+
+  try {
+    await page.waitForURL(/appmsg.*edit/i, { timeout: 12000 });
+  } catch {}
+  await page.waitForTimeout(1500);
+  await screenshot(page, outDir, 'draft-opened.png');
+  if (/appmsg.*edit/i.test(page.url())) {
+    return { ok: true, url: page.url(), method: 'list-edit' };
   }
 
   return { ok: false, reason: 'edit clicked but editor not opened' };
