@@ -38,6 +38,7 @@ function parseArgs(argv) {
     editUrl: null,
     cookieFile: null,
     profile: null,
+    cdpPort: null,
     outDir: null,
     cover: 'cover.png',
     coverIndex: 0,
@@ -60,6 +61,7 @@ function parseArgs(argv) {
     else if (a === '--edit-url' && argv[i + 1]) args.editUrl = argv[++i];
     else if (a === '--cookie' && argv[i + 1]) args.cookieFile = argv[++i];
     else if (a === '--profile' && argv[i + 1]) args.profile = argv[++i];
+    else if (a === '--cdp-port' && argv[i + 1]) args.cdpPort = Number(argv[++i]);
     else if (a === '--out' && argv[i + 1]) args.outDir = argv[++i];
     else if (a === '--cover' && argv[i + 1]) args.cover = argv[++i];
     else if (a === '--cover-index' && argv[i + 1]) args.coverIndex = Number(argv[++i]);
@@ -393,6 +395,7 @@ Or direct edit URL:
     --edit-url "https://mp.weixin.qq.com/cgi-bin/appmsg?..." \\
     --cookie /path/to/wechat-cookies.txt \\
     --profile /tmp/wechat-browser-profile \\
+    --cdp-port 9222 \\
     --out .tmp/wechat-insert-images \\
     --cover cover.png --cover-index 0 \\
     --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \\
@@ -403,6 +406,7 @@ Or use keyword:
     --keyword "标题关键词" \\
     --cookie /path/to/wechat-cookies.txt \\
     --profile /tmp/wechat-browser-profile \\
+    --cdp-port 9222 \\
     --out .tmp/wechat-insert-images \\
     --cover cover.png --cover-index 0 \\
     --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \\
@@ -417,7 +421,13 @@ Or use keyword:
 
   let browser;
   let context;
-  if (args.profile) {
+  if (args.cdpPort) {
+    browser = await chromium.connectOverCDP(`http://127.0.0.1:${args.cdpPort}`);
+    context = browser.contexts()[0] || await browser.newContext({
+      viewport: { width: 1440, height: 900 },
+      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    });
+  } else if (args.profile) {
     context = await chromium.launchPersistentContext(args.profile, {
       headless: true,
       viewport: { width: 1440, height: 900 },
