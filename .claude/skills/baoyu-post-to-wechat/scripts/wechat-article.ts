@@ -332,11 +332,23 @@ export async function postArticle(options: ArticleOptions): Promise<void> {
     const targets = await cdp.send<{ targetInfos: Array<{ targetId: string; url: string; type: string }> }>('Target.getTargets');
     const initialIds = new Set(targets.targetInfos.map(t => t.targetId));
 
-    await clickMenuByText(session, '文章');
-    await sleep(3000);
-
-    const editorTargetId = await waitForNewTab(cdp, initialIds, 'mp.weixin.qq.com');
-    console.log('[wechat] Editor tab opened.');
+    let editorTargetId: string | null = null;
+    try {
+      await clickMenuByText(session, '文章');
+      await sleep(3000);
+      editorTargetId = await waitForNewTab(cdp, initialIds, 'mp.weixin.qq.com');
+      console.log('[wechat] Editor tab opened.');
+    } catch (e) {
+      console.warn('[wechat] Menu "文章" not found; trying existing editor tab...');
+      const targetsNow = await cdp.send<{ targetInfos: Array<{ targetId: string; url: string; type: string }> }>('Target.getTargets');
+      const candidate = targetsNow.targetInfos.find(t => t.url.includes('appmsg_edit') || t.url.includes('cgi-bin/appmsg'));
+      if (candidate) {
+        editorTargetId = candidate.targetId;
+        console.log('[wechat] Reusing existing editor tab.');
+      } else {
+        throw e;
+      }
+    }
 
     const { sessionId } = await cdp.send<{ sessionId: string }>('Target.attachToTarget', { targetId: editorTargetId, flatten: true });
     session = { cdp, sessionId, targetId: editorTargetId };
