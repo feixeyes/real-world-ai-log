@@ -37,6 +37,7 @@ function parseArgs(argv) {
     forceFirst: false,
     editUrl: null,
     cookieFile: null,
+    profile: null,
     outDir: null,
     cover: 'cover.png',
     coverIndex: 0,
@@ -58,6 +59,7 @@ function parseArgs(argv) {
     else if (a === '--force-first') args.forceFirst = true;
     else if (a === '--edit-url' && argv[i + 1]) args.editUrl = argv[++i];
     else if (a === '--cookie' && argv[i + 1]) args.cookieFile = argv[++i];
+    else if (a === '--profile' && argv[i + 1]) args.profile = argv[++i];
     else if (a === '--out' && argv[i + 1]) args.outDir = argv[++i];
     else if (a === '--cover' && argv[i + 1]) args.cover = argv[++i];
     else if (a === '--cover-index' && argv[i + 1]) args.coverIndex = Number(argv[++i]);
@@ -390,6 +392,7 @@ Or direct edit URL:
   node scripts/wechat-insert-images-existing-draft.mjs \\
     --edit-url "https://mp.weixin.qq.com/cgi-bin/appmsg?..." \\
     --cookie /path/to/wechat-cookies.txt \\
+    --profile /tmp/wechat-browser-profile \\
     --out .tmp/wechat-insert-images \\
     --cover cover.png --cover-index 0 \\
     --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \\
@@ -399,6 +402,7 @@ Or use keyword:
   node scripts/wechat-insert-images-existing-draft.mjs \\
     --keyword "标题关键词" \\
     --cookie /path/to/wechat-cookies.txt \\
+    --profile /tmp/wechat-browser-profile \\
     --out .tmp/wechat-insert-images \\
     --cover cover.png --cover-index 0 \\
     --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \\
@@ -411,14 +415,23 @@ Or use keyword:
   const outDir = args.outDir || '/home/fei/clawd/.tmp/wechat-insert-images';
   fs.mkdirSync(outDir, { recursive: true });
 
-  const cookies = parseNetscapeCookies(fs.readFileSync(cookieFile, 'utf8'));
-
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    viewport: { width: 1440, height: 900 },
-    userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-  });
-  await context.addCookies(cookies);
+  let browser;
+  let context;
+  if (args.profile) {
+    context = await chromium.launchPersistentContext(args.profile, {
+      headless: true,
+      viewport: { width: 1440, height: 900 },
+      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    });
+  } else {
+    const cookies = parseNetscapeCookies(fs.readFileSync(cookieFile, 'utf8'));
+    browser = await chromium.launch({ headless: true });
+    context = await browser.newContext({
+      viewport: { width: 1440, height: 900 },
+      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    });
+    await context.addCookies(cookies);
+  }
 
   const page = await context.newPage();
   page.setDefaultTimeout(60000);
@@ -496,7 +509,10 @@ Or use keyword:
 
   console.log(JSON.stringify({ outDir, token, openResult, saved }, null, 2));
 
-  if (!args.keepOpen) await browser.close();
+  if (!args.keepOpen) {
+    if (browser) await browser.close();
+    else if (context) await context.close();
+  }
 }
 
 await main().catch((err) => {
