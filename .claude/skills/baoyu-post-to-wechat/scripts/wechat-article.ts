@@ -76,7 +76,7 @@ async function waitForLogin(session: ChromeSession, timeoutMs = 120_000): Promis
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const url = await evaluate<string>(session, 'window.location.href');
-    if (url.includes('/cgi-bin/home')) return true;
+    if (url.includes('/cgi-bin/home') || url.includes('/cgi-bin/appmsg') || url.includes('appmsg_edit')) return true;
     await sleep(2000);
   }
   return false;
@@ -321,7 +321,7 @@ export async function postArticle(options: ArticleOptions): Promise<void> {
     }
 
     const url = await evaluate<string>(session, 'window.location.href');
-    if (!url.includes('/cgi-bin/home')) {
+    if (!(url.includes('/cgi-bin/home') || url.includes('/cgi-bin/appmsg') || url.includes('appmsg_edit'))) {
       console.log('[wechat] Not logged in. Please scan QR code...');
       const loggedIn = await waitForLogin(session);
       if (!loggedIn) throw new Error('Login timeout');
