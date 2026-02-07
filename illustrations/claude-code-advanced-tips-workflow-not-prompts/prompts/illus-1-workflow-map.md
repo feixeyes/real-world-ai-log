@@ -1,0 +1,1 @@
+Minimalist vector illustration, clean lines, muted slate/teal palette. A simple map of four labeled blocks (Prompt/Tools/Process/Review) connected by arrows into a single pipeline. No text in image; use abstract blocks only. Flat design, white background, calm tech aesthetic.

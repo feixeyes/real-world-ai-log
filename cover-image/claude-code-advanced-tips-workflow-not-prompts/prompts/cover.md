@@ -1,0 +1,1 @@
+Minimalist tech illustration, flat vector style, clean geometric shapes, muted palette (slate/teal/soft orange). Visual metaphor: checklist/flowchart merging into a completed package or delivery box. Subtle Claude Code vibe (abstract, no logos). Spacious composition, wide banner. No text. 1584x672.

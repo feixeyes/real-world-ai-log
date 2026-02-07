@@ -1,0 +1,1 @@
+Minimalist vector illustration, muted colors. A small checklist with three checked items beside a shield/checkmark icon, representing acceptance/verification. No text, no logos. Flat geometric shapes, white background, balanced composition.
