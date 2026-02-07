@@ -359,6 +359,16 @@ export async function postArticle(options: ArticleOptions): Promise<void> {
 
     await sleep(3000);
 
+    try {
+      const editUrl = await evaluate<string>(session, 'window.location.href');
+      const outPath = '/home/fei/clawd/.tmp/wechat-edit-url.txt';
+      fs.mkdirSync(path.dirname(outPath), { recursive: true });
+      fs.writeFileSync(outPath, editUrl, 'utf8');
+      console.log(`[wechat] Edit URL saved: ${outPath}`);
+    } catch (e) {
+      console.warn('[wechat] Failed to save edit URL.');
+    }
+
     if (effectiveTitle) {
       console.log('[wechat] Filling title...');
       await evaluate(session, `document.querySelector('#title').value = ${JSON.stringify(effectiveTitle)}; document.querySelector('#title').dispatchEvent(new Event('input', { bubbles: true }));`);
