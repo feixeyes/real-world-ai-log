@@ -7,9 +7,11 @@ function parseArgs(argv) {
     topic: null,
     outDir: null,
     n: 5,
-    news: false,
     days: 7,
     deep: false,
+    noNews: false,
+    queriesFile: null,
+    section: 'all', // all|docs|arch|prompt|ops|news
   };
 
   for (let i = 2; i < argv.length; i++) {
@@ -17,9 +19,11 @@ function parseArgs(argv) {
     if ((a === '--topic' || a === '--tool') && argv[i + 1]) args.topic = argv[++i];
     else if (a === '--out' && argv[i + 1]) args.outDir = argv[++i];
     else if ((a === '-n' || a === '--n') && argv[i + 1]) args.n = Number(argv[++i]);
-    else if (a === '--news') args.news = true;
     else if (a === '--days' && argv[i + 1]) args.days = Number(argv[++i]);
     else if (a === '--deep') args.deep = true;
+    else if (a === '--no-news') args.noNews = true;
+    else if (a === '--queries' && argv[i + 1]) args.queriesFile = argv[++i];
+    else if (a === '--section' && argv[i + 1]) args.section = argv[++i];
     else if (a === '--help' || a === '-h') args.help = true;
   }
   return args;
@@ -29,21 +33,23 @@ function usage() {
   console.log(`Agent Insights research helper (Tavily).
 
 Purpose:
-  Quickly gather high-signal links + snippets for an "洞察室" post.
+  Quickly gather high-signal links + snippets for a "洞察室" post.
   Uses Tavily via /home/fei/clawd/skills/tavily-search.
 
 Usage:
   node scripts/agent-insights-research.mjs --topic openclaw
 
 Options:
-  --out <dir>   Output directory (default: research/agent-insights-room/<topic>/)
-  -n <count>    Results per query (default: 5, max: 20)
-  --deep        Deeper search (slower)
-  --news        Use news topic for the last query batch
-  --days <n>    News lookback days (default: 7)
+  --out <dir>        Output directory (default: research/agent-insights-room/<topic>/)
+  -n, --n <count>    Results per query (default: 5, max: 20)
+  --deep             Deeper search (slower)
+  --days <n>         News lookback days (default: 7)
+  --no-news          Disable the news query batch
+  --queries <file>   Custom queries file (one query per line; supports {topic})
+  --section <name>   Run subset: all|docs|arch|prompt|ops|news
 
 Env:
-  Requires TAVILY_API_KEY in environment.
+  Requires TAVILY_API_KEY in environment (OpenClaw env.vars works too).
 `);
 }
 
@@ -105,28 +111,67 @@ const slug = safeSlug(topic);
 const outDir = path.resolve(args.outDir || `research/agent-insights-room/${slug}`);
 fs.mkdirSync(outDir, { recursive: true });
 
-const queries = [
-  `${topic} official documentation`,
-  `${topic} architecture sessions tools cron memory`,
-  `${topic} prompt design interaction patterns`,
-  `${topic} troubleshooting common issues`,
-];
-
-// Optional news batch to capture recent signals.
-const newsQueries = [
-  `${topic} release notes`,
-  `${topic} new features`,
-];
-
-const runs = [];
-for (const q of queries) {
-  const out = runTavilySearch(q, { n: args.n, deep: args.deep, news: false, days: args.days });
-  runs.push({ query: q, mode: 'general', raw: out, links: extractLinks(out) });
+function loadCustomQueries(file, topic) {
+  if (!file) return null;
+  const p = path.resolve(file);
+  if (!fs.existsSync(p)) throw new Error(`Queries file not found: ${p}`);
+  const lines = fs.readFileSync(p, 'utf8').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  return lines.map(q => q.replace(/\{topic\}/g, topic));
 }
 
-for (const q of newsQueries) {
-  const out = runTavilySearch(q, { n: Math.min(args.n, 5), deep: false, news: true, days: args.days });
-  runs.push({ query: q, mode: 'news', raw: out, links: extractLinks(out) });
+const customQueries = loadCustomQueries(args.queriesFile, topic);
+
+const batches = {
+  docs: [`${topic} official documentation`, `${topic} docs API reference`],
+  arch: [`${topic} architecture sessions tools cron memory`, `${topic} runtime gateway channels sessions`],
+  prompt: [`${topic} prompt design interaction patterns`, `${topic} best practices workflows`],
+  ops: [`${topic} troubleshooting common issues`, `${topic} deployment config env vars`],
+  news: [`${topic} release notes`, `${topic} new features`],
+};
+
+function wantSection(name) {
+  return args.section === 'all' || args.section === name;
+}
+
+const runs = [];
+
+if (customQueries && customQueries.length) {
+  for (const q of customQueries) {
+    const out = runTavilySearch(q, { n: args.n, deep: args.deep, news: false, days: args.days });
+    runs.push({ query: q, mode: 'custom', raw: out, links: extractLinks(out) });
+  }
+} else {
+  if (wantSection('docs')) {
+    for (const q of batches.docs) {
+      const out = runTavilySearch(q, { n: args.n, deep: args.deep, news: false, days: args.days });
+      runs.push({ query: q, mode: 'general', raw: out, links: extractLinks(out) });
+    }
+  }
+  if (wantSection('arch')) {
+    for (const q of batches.arch) {
+      const out = runTavilySearch(q, { n: args.n, deep: args.deep, news: false, days: args.days });
+      runs.push({ query: q, mode: 'general', raw: out, links: extractLinks(out) });
+    }
+  }
+  if (wantSection('prompt')) {
+    for (const q of batches.prompt) {
+      const out = runTavilySearch(q, { n: args.n, deep: args.deep, news: false, days: args.days });
+      runs.push({ query: q, mode: 'general', raw: out, links: extractLinks(out) });
+    }
+  }
+  if (wantSection('ops')) {
+    for (const q of batches.ops) {
+      const out = runTavilySearch(q, { n: args.n, deep: args.deep, news: false, days: args.days });
+      runs.push({ query: q, mode: 'general', raw: out, links: extractLinks(out) });
+    }
+  }
+
+  if (!args.noNews && wantSection('news')) {
+    for (const q of batches.news) {
+      const out = runTavilySearch(q, { n: Math.min(args.n, 5), deep: false, news: true, days: args.days });
+      runs.push({ query: q, mode: 'news', raw: out, links: extractLinks(out) });
+    }
+  }
 }
 
 const payload = {
@@ -142,7 +187,15 @@ fs.writeFileSync(path.join(outDir, 'tavily-results.json'), JSON.stringify(payloa
 // Write a readable markdown digest
 let md = `# 洞察室资料抓取：${topic}\n\n`;
 md += `- GeneratedAt: ${payload.generatedAt}\n`;
-md += `- Queries: ${runs.length}\n\n`;
+md += `- Queries: ${runs.length}\n`;
+md += `- Section: ${args.section}\n\n`;
+
+// Quick link index (dedup)
+const allLinks = Array.from(new Set(runs.flatMap(r => r.links)));
+md += `## Link index (${allLinks.length})\n\n`;
+for (const u of allLinks.slice(0, 50)) md += `- ${u}\n`;
+if (allLinks.length > 50) md += `- … (+${allLinks.length - 50} more)\n`;
+md += `\n`;
 
 for (const r of runs) {
   md += `## Query (${r.mode}): ${r.query}\n\n`;
