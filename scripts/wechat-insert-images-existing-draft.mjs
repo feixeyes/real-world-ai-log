@@ -34,6 +34,7 @@ function parseArgs(argv) {
   const args = {
     keyword: null,
     latest: false,
+    forceFirst: false,
     cookieFile: null,
     outDir: null,
     cover: 'cover.png',
@@ -53,6 +54,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if ((a === '--keyword' || a === '--title') && argv[i + 1]) args.keyword = argv[++i];
     else if (a === '--latest') args.latest = true;
+    else if (a === '--force-first') args.forceFirst = true;
     else if (a === '--cookie' && argv[i + 1]) args.cookieFile = argv[++i];
     else if (a === '--out' && argv[i + 1]) args.outDir = argv[++i];
     else if (a === '--cover' && argv[i + 1]) args.cover = argv[++i];
@@ -135,7 +137,6 @@ async function openLatestDraft(page, token, outDir, perPage) {
   await page.waitForTimeout(3000);
   await screenshot(page, outDir, 'drafts-latest.png');
 
-  // Click the first visible title in the list
   const title = page.locator('a, .weui-desktop-card__title, .appmsg_title, .title').filter({ hasText: /.+/ }).first();
   if (await title.count()) {
     await title.first().click().catch(() => undefined);
@@ -150,6 +151,53 @@ async function openLatestDraft(page, token, outDir, perPage) {
   }
 
   return { ok: false, reason: 'latest draft not opened' };
+}
+
+async function openFirstCardDraft(page, token, outDir, perPage) {
+  const listUrl = `https://mp.weixin.qq.com/cgi-bin/appmsg?begin=0&count=${perPage}&type=77&action=list_card&lang=zh_CN&token=${token}`;
+  await page.goto(listUrl, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(3000);
+  await screenshot(page, outDir, 'drafts-first.png');
+
+  const clicked = await page.evaluate(() => {
+    const selectors = [
+      '.weui-desktop-card__bd .weui-desktop-card__title',
+      '.weui-desktop-card__bd a',
+      '.appmsg_title',
+      'a'
+    ];
+    function visible(el) {
+      const r = el.getBoundingClientRect();
+      const st = getComputedStyle(el);
+      return r.width > 30 && r.height > 10 && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
+    }
+    for (const sel of selectors) {
+      const nodes = Array.from(document.querySelectorAll(sel));
+      for (const n of nodes) {
+        if (!(n instanceof HTMLElement)) continue;
+        if (!visible(n)) continue;
+        if ((n.innerText || '').trim().length < 2) continue;
+        n.click();
+        return true;
+      }
+    }
+    return false;
+  });
+
+  if (!clicked) {
+    return { ok: false, reason: 'no clickable draft card found' };
+  }
+
+  try {
+    await page.waitForURL(/appmsg.*edit/i, { timeout: 12000 });
+  } catch {}
+  await page.waitForTimeout(1500);
+  await screenshot(page, outDir, 'draft-opened.png');
+  if (/appmsg.*edit/i.test(page.url())) {
+    return { ok: true, url: page.url(), method: 'first-card' };
+  }
+
+  return { ok: false, reason: 'first card clicked but editor not opened' };
 }
 
 async function placeCursorAtStart(page) {
@@ -306,25 +354,34 @@ async function selectImageByFilename(page, filename, outDir, tag, fallbackIndex 
 
 async function main() {
   const args = parseArgs(process.argv);
-  if (args.help || (!args.keyword && !args.latest)) {
+  if (args.help || (!args.keyword && !args.latest && !args.forceFirst)) {
     console.log(`Insert images into an EXISTING WeChat draft (草稿箱) via Playwright + cookie injection.
 
 Usage:
-  node scripts/wechat-insert-images-existing-draft.mjs \
-    --latest \
-    --cookie /path/to/wechat-cookies.txt \
-    --out .tmp/wechat-insert-images \
-    --cover cover.png --cover-index 0 \
-    --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \
+  node scripts/wechat-insert-images-existing-draft.mjs \\
+    --latest \\
+    --cookie /path/to/wechat-cookies.txt \\
+    --out .tmp/wechat-insert-images \\
+    --cover cover.png --cover-index 0 \\
+    --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \\
+    --illus2 illus-2.png --illus2-after "..." --illus2-index 1
+
+Or force-first:
+  node scripts/wechat-insert-images-existing-draft.mjs \\
+    --force-first \\
+    --cookie /path/to/wechat-cookies.txt \\
+    --out .tmp/wechat-insert-images \\
+    --cover cover.png --cover-index 0 \\
+    --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \\
     --illus2 illus-2.png --illus2-after "..." --illus2-index 1
 
 Or use keyword:
-  node scripts/wechat-insert-images-existing-draft.mjs \
-    --keyword "标题关键词" \
-    --cookie /path/to/wechat-cookies.txt \
-    --out .tmp/wechat-insert-images \
-    --cover cover.png --cover-index 0 \
-    --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \
+  node scripts/wechat-insert-images-existing-draft.mjs \\
+    --keyword "标题关键词" \\
+    --cookie /path/to/wechat-cookies.txt \\
+    --out .tmp/wechat-insert-images \\
+    --cover cover.png --cover-index 0 \\
+    --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \\
     --illus2 illus-2.png --illus2-after "..." --illus2-index 1
 `);
     process.exit(args.help ? 0 : 2);
@@ -347,16 +404,17 @@ Or use keyword:
   page.setDefaultTimeout(60000);
 
   const token = await ensureToken(page, outDir);
-  const openResult = args.latest
-    ? await openLatestDraft(page, token, outDir, args.perPage)
-    : await openDraftByKeyword(page, token, args.keyword, outDir, args.perPage, args.maxPages);
+  const openResult = args.forceFirst
+    ? await openFirstCardDraft(page, token, outDir, args.perPage)
+    : args.latest
+      ? await openLatestDraft(page, token, outDir, args.perPage)
+      : await openDraftByKeyword(page, token, args.keyword, outDir, args.perPage, args.maxPages);
   if (!openResult.ok) {
     console.log(JSON.stringify({ outDir, token, openResult }, null, 2));
     await browser.close();
     process.exit(1);
   }
 
-  // Insert cover at body start
   if (args.cover) {
     const okStart = await placeCursorAtStart(page);
     if (!okStart) {
@@ -370,7 +428,6 @@ Or use keyword:
     }
   }
 
-  // Insert illustration 1
   if (args.illus1 && args.illus1After) {
     const ok1 = await placeCursorAfterText(page, args.illus1After);
     if (!ok1) {
@@ -382,7 +439,6 @@ Or use keyword:
     await selectImageByFilename(page, args.illus1, outDir, 'illus1', args.illus1Index);
   }
 
-  // Insert illustration 2
   if (args.illus2 && args.illus2After) {
     const ok2 = await placeCursorAfterText(page, args.illus2After);
     if (!ok2) {
@@ -396,7 +452,6 @@ Or use keyword:
 
   await screenshot(page, outDir, 'after-inserted.png');
 
-  // Save draft
   let saved = false;
   for (const re of [/保存为草稿/, /保存/]) {
     const btn = page.getByRole('button', { name: re });
