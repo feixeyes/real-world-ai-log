@@ -1,0 +1,22 @@
+{
+  "slug": "rewind-is-agent-ctrl-z-claude-code",
+  "title": "rewind-is-agent-ctrl-z-claude-code",
+  "wechatAbstract": "告别简单的文件回滚，将Agent的Ctrl+Z升级为执行流事务控制。深度解析Claude Code的rewind机制，通过检查点、两阶段执行及幂等设计，解决Agent在调用接口、发消息等不可逆操作中的回滚难题，构建真正敢落地的自动化流水线。",
+  "oneLiner": "深入Claude Code的rewind内核，详解如何通过检查点与两阶段执行架构",
+  "bullets": [
+    "区分文件撤销与执行控制，定义Agent事务边界",
+    "采用演练与应用两阶段架构，通过演练隔离风险",
+    "设计检查点与幂等机制，闭环处理外部动作副作用"
+  ],
+  "keywords": [
+    "AI Agent",
+    "Claude Code",
+    "rewind",
+    "检查点",
+    "幂等设计",
+    "执行流控制",
+    "自动化流水线"
+  ],
+  "generatedAt": "2026-02-07T07:22:40.246Z",
+  "model": "gemini-2.5-pro"
+}
