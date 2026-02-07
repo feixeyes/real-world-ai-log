@@ -25,6 +25,7 @@ interface ArticleOptions {
   submit?: boolean;
   profileDir?: string;
   cookieFile?: string;
+  noSummary?: boolean;
 }
 
 function parseNetscapeCookies(txt: string) {
@@ -262,11 +263,12 @@ async function pressDeleteKey(session: ChromeSession): Promise<void> {
 }
 
 export async function postArticle(options: ArticleOptions): Promise<void> {
-  const { title, content, htmlFile, markdownFile, theme, author, summary, images = [], submit = false, profileDir, cookieFile } = options;
+  const { title, content, htmlFile, markdownFile, theme, author, summary, images = [], submit = false, profileDir, cookieFile, noSummary } = options;
   let { contentImages = [] } = options;
   let effectiveTitle = title || '';
   let effectiveAuthor = author || '';
   let effectiveSummary = summary || '';
+  if (noSummary) effectiveSummary = '';
   let effectiveHtmlFile = htmlFile;
 
   if (markdownFile) {
@@ -286,7 +288,7 @@ export async function postArticle(options: ArticleOptions): Promise<void> {
     const meta = parseHtmlMeta(htmlFile);
     effectiveTitle = effectiveTitle || meta.title;
     effectiveAuthor = effectiveAuthor || meta.author;
-    effectiveSummary = effectiveSummary || meta.summary;
+    if (!noSummary) effectiveSummary = effectiveSummary || meta.summary;
     effectiveHtmlFile = htmlFile;
     console.log(`[wechat] Title: ${effectiveTitle || '(empty)'}`);
     console.log(`[wechat] Author: ${effectiveAuthor || '(empty)'}`);
@@ -413,6 +415,8 @@ export async function postArticle(options: ArticleOptions): Promise<void> {
     if (effectiveSummary) {
       console.log(`[wechat] Filling summary: ${effectiveSummary}`);
       await evaluate(session, `document.querySelector('#js_description').value = ${JSON.stringify(effectiveSummary)}; document.querySelector('#js_description').dispatchEvent(new Event('input', { bubbles: true }));`);
+    } else {
+      console.log('[wechat] Summary skipped.');
     }
 
     console.log('[wechat] Saving as draft...');
@@ -451,6 +455,7 @@ Options:
   --theme <name>     Theme for markdown (default, grace, simple)
   --author <name>    Author name (default: 宝玉)
   --summary <text>   Article summary
+  --no-summary       Skip filling summary field
   --image <path>     Content image, can repeat (only with --content)
   --submit           Save as draft
   --profile <dir>    Chrome profile directory
@@ -485,6 +490,7 @@ async function main(): Promise<void> {
   let submit = false;
   let profileDir: string | undefined;
   let cookieFile: string | undefined;
+  let noSummary = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -499,12 +505,13 @@ async function main(): Promise<void> {
     else if (arg === '--submit') submit = true;
     else if (arg === '--profile' && args[i + 1]) profileDir = args[++i];
     else if (arg === '--cookie' && args[i + 1]) cookieFile = args[++i];
+    else if (arg === '--no-summary') noSummary = true;
   }
 
   if (!markdownFile && !htmlFile && !title) { console.error('Error: --title is required (or use --markdown/--html)'); process.exit(1); }
   if (!markdownFile && !htmlFile && !content) { console.error('Error: --content, --html, or --markdown is required'); process.exit(1); }
 
-  await postArticle({ title: title || '', content, htmlFile, markdownFile, theme, author, summary, images, submit, profileDir, cookieFile });
+  await postArticle({ title: title || '', content, htmlFile, markdownFile, theme, author, summary, images, submit, profileDir, cookieFile, noSummary });
 }
 
 await main().catch((err) => {
