@@ -52,6 +52,10 @@ Agents are collaborators, not autonomous authors.
      - Ask once.
      - If there is no reply within **10 minutes**, proceed with a sensible default and clearly log what was assumed.
 
+7. **Always deliver outputs to the human**
+   - Any generated file (drafts, images, summaries, etc.) must be sent to the user directly in addition to saving locally.
+   - If multiple files are produced, send a compact bundle (or the key file + a list) and ask whether to send the rest.
+
 ---
 
 ## Repository Structure (High Level)
