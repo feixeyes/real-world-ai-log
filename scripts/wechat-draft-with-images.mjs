@@ -618,6 +618,9 @@ function parseArgs(argv) {
     illus1: 'illus-1-loop.png',
     illus2: 'illus-2-memory.png',
 
+    // optional html (formatted) content
+    htmlFile: null,
+
     // where to insert illustrations (anchor text inside editor)
     illus1After: '## 4. 最小可用模板',
     illus2After: '## 5. 更新机制',
@@ -658,6 +661,7 @@ function parseArgs(argv) {
     else if (a === '--abstract-to-body') args.abstractToBody = true;
     else if (a === '--no-abstract-to-body') args.abstractToBody = false;
     else if (a === '--fill-abstract') args.fillAbstract = true;
+    else if (a === '--html' && argv[i + 1]) args.htmlFile = argv[++i];
     else if (a === '--illus1' && argv[i + 1]) args.illus1 = argv[++i];
     else if (a === '--illus2' && argv[i + 1]) args.illus2 = argv[++i];
     else if (a === '--illus1-after' && argv[i + 1]) args.illus1After = argv[++i];
@@ -679,6 +683,7 @@ Usage (legacy positional):
 
 Usage (flags):
   node scripts/wechat-draft-with-images.mjs --md content/drafts/xxx.md --cookie /path/cookies.txt --out .tmp/wechat-draft \
+    --html /path/to/formatted.html \
     --illus1 illus-1.png --illus1-after "..." --illus1-index 0 \
     --illus2 illus-2.png --illus2-after "..." --illus2-index 1
 
@@ -819,7 +824,23 @@ Notes:
   await editable.click();
   // Select-all to ensure clean slate
   await page.keyboard.press('Control+A');
-  await page.keyboard.type(contentPlain.slice(0, 20000));
+
+  if (args.htmlFile && fs.existsSync(args.htmlFile)) {
+    const htmlText = fs.readFileSync(args.htmlFile, 'utf8');
+    await page.evaluate((htmlText) => {
+      const editor = document.querySelector('.ProseMirror[contenteditable="true"]');
+      if (!editor) return;
+      editor.focus();
+      // Parse HTML and extract #output or body
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlText, 'text/html');
+      const output = doc.querySelector('#output') || doc.body;
+      const html = output ? output.innerHTML : htmlText;
+      document.execCommand('insertHTML', false, html);
+    }, htmlText);
+  } else {
+    await page.keyboard.type(contentPlain.slice(0, 20000));
+  }
 
   await page.waitForTimeout(1500);
   await screenshot(page, outDir, '03-filled-text.png');
