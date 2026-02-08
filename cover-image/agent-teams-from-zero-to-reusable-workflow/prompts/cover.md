@@ -1,0 +1,1 @@
+Minimalist tech illustration, flat vector style, clean geometric shapes, muted palette (slate/teal/soft orange). Visual metaphor: three parallel lanes merging into a single delivery box/checkmark. No text, no logos. Wide banner composition, lots of whitespace. 1584x672.

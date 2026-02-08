@@ -1,0 +1,1 @@
+Minimalist vector illustration. Three simple avatar blocks labeled by icons only (book, wrench, checkmark) connected in parallel, showing roles A/B/C. Flat design, muted slate/teal palette, white background. No text or logos.

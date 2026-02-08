@@ -1,0 +1,1 @@
+Minimalist vector illustration. A four-step pipeline (split → parallel → merge → verify) shown as simple geometric blocks and arrows. Muted slate/teal palette, clean lines, white background. No text or logos.
