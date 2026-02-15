@@ -68,6 +68,8 @@ Agents are collaborators, not autonomous authors.
 
 - content/
   - ideas/        Raw ideas, fragments, notes
+    - backlog.md  ← 入口文件，列出所有未处理选题
+    - *.md        ← 各选题详情
   - outlines/     Article outlines only
   - drafts/       Full article drafts
   - published/    Final published versions
@@ -77,6 +79,29 @@ Agents are collaborators, not autonomous authors.
 - templates/      Writing and review templates
 
 Agents must understand this structure before acting.
+
+---
+
+## Ideas Backlog System
+
+When the human asks about "ideas" or "选题", agents must:
+
+1. **Read the backlog entry point first**:
+   - Read `content/ideas/backlog.md`
+   - This file lists all pending ideas with status checkboxes
+
+2. **Understand the file structure**:
+   - `backlog.md` → 入口，列出所有未处理选题
+   - `YYYY-MM-DD-*.md` → 单个选题的详细信息（来源、核心观点、小实验、写作进度）
+
+3. **Answer questions like**:
+   - "看一下还有哪些没有处理的 idea" → 读取 backlog.md，列出所有 `[ ]` 未完成的选题
+   - "这个选题的详细信息" → 读取对应的 `*.md` 文件
+
+4. **Status conventions in idea files**:
+   - `[ ] 待写作` → 还未开始
+   - `[ ] 写作中` → 正在写
+   - `[ ] 已发布` → 已完成
 
 ---
 
