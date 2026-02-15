@@ -42,9 +42,27 @@ npx -y bun ${SKILL_DIR}/scripts/wechat-browser.ts --title "标题" --content "�
 ```bash
 # Post markdown article
 npx -y bun ${SKILL_DIR}/scripts/wechat-article.ts --markdown article.md --theme grace
+
+# Skip automatic image insertion (placeholders preserved for manual replacement)
+npx -y bun ${SKILL_DIR}/scripts/wechat-article.ts --markdown article.md --theme grace --skip-images
 ```
 
 > **Note**: `${SKILL_DIR}` represents this skill's installation directory. Agent replaces with actual path at runtime.
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `--markdown <path>` | Markdown file to convert and post (recommended) |
+| `--theme <name>` | Theme for markdown (default, grace, simple) |
+| `--title <text>` | Article title (auto-extracted from markdown) |
+| `--author <name>` | Author name |
+| `--summary <text>` | Article summary |
+| `--no-summary` | Skip filling summary field |
+| `--skip-images` | Skip automatic image insertion, placeholders preserved |
+| `--submit` | Save as draft and close |
+| `--profile <dir>` | Chrome profile directory |
+| `--cookie <file>` | Netscape cookies.txt for login |
 
 ## References
 

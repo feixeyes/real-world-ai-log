@@ -26,6 +26,7 @@ interface ArticleOptions {
   profileDir?: string;
   cookieFile?: string;
   noSummary?: boolean;
+  skipImages?: boolean;
 }
 
 function parseNetscapeCookies(txt: string) {
@@ -125,7 +126,16 @@ async function pasteInEditor(session: ChromeSession): Promise<void> {
 }
 
 async function copyHtmlFromBrowser(cdp: CdpConnection, htmlFilePath: string): Promise<void> {
-  const absolutePath = path.isAbsolute(htmlFilePath) ? htmlFilePath : path.resolve(process.cwd(), htmlFilePath);
+  let absolutePath = path.isAbsolute(htmlFilePath) ? htmlFilePath : path.resolve(process.cwd(), htmlFilePath);
+
+  // For snap Chromium, copy to accessible directory
+  const snapDataDir = '/home/fei/snap/chromium/common/chromium/Default';
+  const accessiblePath = path.join(snapDataDir, 'temp-article.html');
+  if (fs.existsSync(absolutePath)) {
+    fs.copyFileSync(absolutePath, accessiblePath);
+    absolutePath = accessiblePath;
+  }
+
   const fileUrl = `file://${absolutePath}`;
 
   console.log(`[wechat] Opening HTML file in new tab: ${fileUrl}`);
@@ -263,7 +273,7 @@ async function pressDeleteKey(session: ChromeSession): Promise<void> {
 }
 
 export async function postArticle(options: ArticleOptions): Promise<void> {
-  const { title, content, htmlFile, markdownFile, theme, author, summary, images = [], submit = false, profileDir, cookieFile, noSummary } = options;
+  const { title, content, htmlFile, markdownFile, theme, author, summary, images = [], submit = false, profileDir, cookieFile, noSummary, skipImages = false } = options;
   let { contentImages = [] } = options;
   let effectiveTitle = title || '';
   let effectiveAuthor = author || '';
@@ -391,7 +401,7 @@ export async function postArticle(options: ArticleOptions): Promise<void> {
       await pasteFromClipboardInEditor();
       await sleep(3000);
 
-      if (contentImages.length > 0) {
+      if (contentImages.length > 0 && !skipImages) {
         console.log(`[wechat] Inserting ${contentImages.length} images...`);
         for (let i = 0; i < contentImages.length; i++) {
           const img = contentImages[i]!;
@@ -514,6 +524,7 @@ async function main(): Promise<void> {
   let profileDir: string | undefined;
   let cookieFile: string | undefined;
   let noSummary = false;
+  let skipImages = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -529,12 +540,13 @@ async function main(): Promise<void> {
     else if (arg === '--profile' && args[i + 1]) profileDir = args[++i];
     else if (arg === '--cookie' && args[i + 1]) cookieFile = args[++i];
     else if (arg === '--no-summary') noSummary = true;
+    else if (arg === '--skip-images') skipImages = true;
   }
 
   if (!markdownFile && !htmlFile && !title) { console.error('Error: --title is required (or use --markdown/--html)'); process.exit(1); }
   if (!markdownFile && !htmlFile && !content) { console.error('Error: --content, --html, or --markdown is required'); process.exit(1); }
 
-  await postArticle({ title: title || '', content, htmlFile, markdownFile, theme, author, summary, images, submit, profileDir, cookieFile, noSummary });
+  await postArticle({ title: title || '', content, htmlFile, markdownFile, theme, author, summary, images, submit, profileDir, cookieFile, noSummary, skipImages });
 }
 
 await main().catch((err) => {
