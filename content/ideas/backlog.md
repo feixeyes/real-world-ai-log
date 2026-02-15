@@ -8,6 +8,8 @@
 ## 2026-02-15
 
 - [ ] [「一人 AI 工厂」实战复盘](./2026-02-15-yupi-120-apps.md)
+- [ ] [Agentic Engineering vs Vibe Coding 深度对比](./2026-02-15-agentic-vs-vibe.md)
+- [ ] [Memory 架构避坑指南](./2026-02-15-memory-architecture.md)
 
 ---
 
