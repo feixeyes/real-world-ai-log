@@ -131,9 +131,10 @@ Agents should follow this default sequence unless instructed otherwise:
 
 ### 3. Execution Phase
 - Choose English filenames following `NAMING_CONVENTIONS.md` (no need to ask for confirmation)
+- Use date prefix format: `YYYY-MM-DD-<english-slug>.md`
 - Break work into small tasks:
-  - Outline file → `content/outlines/<english-slug>.md`
-  - Draft file → `content/drafts/<english-slug>.md`
+  - Outline file → `content/outlines/YYYY-MM-DD-<english-slug>.md`
+  - Draft file → `content/drafts/YYYY-MM-DD-<english-slug>.md`
 - After each task:
   - Summarize what was done
   - Ask whether to continue
@@ -144,6 +145,30 @@ Agents should follow this default sequence unless instructed otherwise:
   - Redundancy
   - Overconfident claims
   - Missing concrete examples
+
+### 5. Polish & Visuals (Optional)
+- Use `polish-style` skill to refine tone and readability
+- After polish, optionally generate:
+  - **Cover image**: Use `baoyu-cover-image` skill
+  - **Illustrations**: Use `baoyu-article-illustrator` skill (typically 2 images)
+- Ask human whether to proceed with image generation
+
+### 6. Publish (WeChat)
+When human confirms to publish, use the following workflow:
+
+1. **Upload images to material library**:
+   - Use `wechat-material-upload` skill to upload cover + illustrations to WeChat 素材库
+   - Default: add watermark, close browser after upload
+
+2. **Post article to draft box**:
+   - Use `baoyu-post-to-wechat` skill to post article to 草稿箱
+   - Set cover image (from uploaded material)
+   - Insert abstract at top if available
+   - Do NOT auto-set cover in draft; human will set manually
+
+3. **Update status**:
+   - Mark as 已发布 in idea file
+   - Move draft to `content/published/` directory
 
 ---
 

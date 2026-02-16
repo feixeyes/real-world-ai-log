@@ -21,17 +21,30 @@
 
 ### 2. 文件命名格式 / File Naming Format
 
+#### Standard format (ideas, outlines, drafts)
+
 ```
 <topic-keywords>.md
 ```
 
+#### Date prefix format (outlines, drafts, published)
+
+```
+YYYY-MM-DD-<topic-keywords>.md
+```
+
+> Note: Starting from 2026-02-15, all outlines, drafts, and published articles should use the date prefix format to match the ideas system.
+
 **示例 / Examples:**
 
 ```
+# Standard format
 ✅ good-naming-examples.md
 ✅ ai-coding-practices.md
-✅ productivity-and-opportunities.md
-✅ three-useless-projects.md
+
+# Date prefix format
+✅ 2026-02-15-productivity-boom.md
+✅ 2026-02-15-three-useless-projects.md
 
 ❌ 生产力大爆发-程序员的机会.md
 ❌ ai-coding-agent-三个没用的小项目.md
@@ -43,19 +56,23 @@
 
 #### content/ideas/
 - 用简短关键词描述想法 / Use short keywords to describe the idea
-- 例如 / Examples: `ai-tools-comparison.md`, `workflow-optimization.md`
+- 必须使用日期前缀 / Must use date prefix
+- 例如 / Examples: `2026-02-15-ai-tools-comparison.md`, `2026-02-15-workflow-optimization.md`
 
 #### content/outlines/
 - 与草稿文件名保持一致 / Match the corresponding draft filename
-- 例如 / Examples: `productivity-boom.md`, `learning-ai-coding.md`
+- 必须使用日期前缀 / Must use date prefix
+- 例如 / Examples: `2026-02-15-productivity-boom.md`, `2026-02-15-learning-ai-coding.md`
 
 #### content/drafts/
 - 反映文章核心主题 / Reflect the core topic of the article
 - 3-6 个单词为宜 / 3-6 words recommended
-- 例如 / Examples: `programmers-in-ai-era.md`, `my-three-failed-projects.md`
+- 必须使用日期前缀 / Must use date prefix
+- 例如 / Examples: `2026-02-15-programmers-in-ai-era.md`, `2026-02-15-my-three-failed-projects.md`
 
 #### content/published/
 - 通常保持草稿文件名 / Usually keep the draft filename
+- 必须使用日期前缀 / Must use date prefix
 - 可以根据发布标题微调 / May adjust based on final title
 
 ---
@@ -98,10 +115,10 @@
 ### 文件命名提议格式 / Filename Proposal Format
 
 ```markdown
-基于文章标题「<中文标题>」，我建议使用以下文件名：
+基于文章标题「<中文标题>」，我建议使用以下文件名（使用日期前缀格式）：
 
-- Outline: `content/outlines/<english-slug>.md`
-- Draft: `content/drafts/<english-slug>.md`
+- Outline: `content/outlines/YYYY-MM-DD-<english-slug>.md`
+- Draft: `content/drafts/YYYY-MM-DD-<english-slug>.md`
 
 文件命名逻辑：<解释为什么选择这个英文名称>
 
